@@ -9,15 +9,17 @@ module RailsAudit
   class CLI
     USAGE = <<~USAGE
       Usage: rails-audit audit TARGET [options]
+             rails-audit annotate FINDINGS_JSON [--output PATH]
 
       Options:
               --output-dir DIR          Directory to write outputs (default: .)
               --respect-target-config   Respect the target app's own brakeman ignore file
     USAGE
 
-    def initialize(stdout: $stdout, stderr: $stderr)
+    def initialize(stdout: $stdout, stderr: $stderr, claude_runner: nil)
       @stdout = stdout
       @stderr = stderr
+      @claude_runner = claude_runner
     end
 
     def run(argv)
@@ -26,6 +28,8 @@ module RailsAudit
       case command
       when "audit"
         audit(rest)
+      when "annotate"
+        annotate(rest)
       else
         usage_error
       end
@@ -35,6 +39,30 @@ module RailsAudit
     end
 
     private
+
+    def annotate(argv)
+      options = { output: "ANNOTATIONS.md" }
+      parser = OptionParser.new do |opts|
+        opts.on("--output PATH") { |path| options[:output] = path }
+      end
+
+      begin
+        parser.parse!(argv)
+      rescue OptionParser::ParseError => e
+        @stderr.puts e.message
+        return usage_error
+      end
+
+      findings_path = argv.shift
+      return usage_error unless findings_path && argv.empty?
+
+      arguments = {
+        findings_path: File.expand_path(findings_path), output_path: File.expand_path(options[:output]),
+        stdout: @stdout, stderr: @stderr
+      }
+      arguments[:runner] = @claude_runner if @claude_runner
+      Annotate.run(**arguments)
+    end
 
     def audit(argv)
       options = { output_dir: "." }

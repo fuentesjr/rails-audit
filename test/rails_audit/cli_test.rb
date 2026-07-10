@@ -62,4 +62,19 @@ class CLITest < Minitest::Test
       assert_includes report, "## Security"
     end
   end
+
+  def test_annotate_missing_findings_file_and_unknown_arguments_return_usage_errors
+    [
+      ["annotate"],
+      ["annotate", "findings.json", "extra"],
+      ["annotate", "findings.json", "--bogus"]
+    ].each do |argv|
+      stdout, stderr = StringIO.new, StringIO.new
+      status = RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(argv)
+
+      refute_equal 0, status
+      assert_includes stderr.string, "rails-audit annotate FINDINGS_JSON"
+      assert_empty stdout.string
+    end
+  end
 end
