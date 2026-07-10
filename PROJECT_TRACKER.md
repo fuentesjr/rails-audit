@@ -25,8 +25,8 @@ phases" below. Delegation model in use: heavy coding → codex, lighter tasks �
       gemspec already points at `fuentesjr/rails-audit`. 12 commits waiting on `main`.
 - [x] **Absorb spike data as test fixtures** — DONE: `test/fixtures/raw/*.json` (normalizer +
       identity ground truth), collision-pair fixtures, exit-code tables encoded in runners.
-- [ ] **Verify CI** — `.github/workflows/main.yml` runs `bundle exec rake` on Ruby 4.0.1
-      (matches pin); can't validate until a remote exists.
+- [x] **Verify CI** — GREEN on push (run 29129031294): `bundle exec rake` on Ubuntu + Ruby
+      4.0.1, incl. the live brakeman/rubocop/reek tests, 1m2s. Remote pushed by owner.
 
 ## Delivery phases (DESIGN.md §10)
 
