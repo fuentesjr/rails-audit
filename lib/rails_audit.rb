@@ -8,3 +8,5 @@ require_relative "rails_audit/normalizer"
 module RailsAudit
   class Error < StandardError; end
 end
+
+require_relative "rails_audit/runners"
