@@ -710,7 +710,9 @@ found while drafting this document:
   This is exactly the silent-false-negative class the project exists to surface. Mitigation:
   the runner/report should detect an absent `db/schema.rb` at audit time and note it in the report
   header ("schema cops inactive — no db/schema.rb found") rather than letting absence read as
-  "clean." Not yet implemented.
+  "clean." IMPLEMENTED (Phase 5c): the CLI detects a missing `db/schema.rb` and the report renders
+  a `## Warnings` section naming the inactive schema-dependent cops (migration cops on
+  `db/migrate` are noted as unaffected).
 - **`enforce_hard_cap` digest backstop** — never exercised, real or synthetic; low risk
   but genuinely unverified (`implementation-notes-llm.md`).
 - **Report restructure to an impact-first leading section (§6)** — proposed but not

@@ -95,6 +95,21 @@ class ReportTest < Minitest::Test
     refute_match(/^- `/m, section(report, "Security"))
   end
 
+  def test_warnings_section_renders_after_tools_when_present
+    document = document_with([], warnings: ["db/schema.rb not found — schema cops were inactive."])
+    report = RailsAudit::Report.render(document)
+
+    assert_includes report, "## Warnings\n- db/schema.rb not found — schema cops were inactive."
+    assert_operator report.index("## Tools"), :<, report.index("## Warnings")
+    assert_operator report.index("## Warnings"), :<, report.index("## Critical & High")
+  end
+
+  def test_warnings_section_is_omitted_entirely_when_there_are_none
+    report = RailsAudit::Report.render(document_with([]))
+
+    refute_includes report, "## Warnings"
+  end
+
   def test_footer_includes_zero_impact_rows_and_distinct_confidences
     findings = [
       finding(category: "security", impact: "critical", rule: "SQLi", file: "a.rb", start_line: 1,
@@ -159,11 +174,12 @@ class ReportTest < Minitest::Test
     end
   end
 
-  def document_with(findings)
+  def document_with(findings, warnings: [])
     {
       target: "target/app",
       toolchain: { ruby: "4.0.1" },
       tools: [{ name: "rubocop", version: "1.88.2", raw_count: findings.size, exit_code: 1 }],
+      warnings: warnings,
       findings: findings
     }
   end

@@ -7,6 +7,8 @@ require "test_helper"
 
 class CLITest < Minitest::Test
   TARGET_APP = File.expand_path("../fixtures/target_app", __dir__)
+  SCHEMA_APP = File.expand_path("../fixtures/schema_app", __dir__)
+  SCHEMA_MISSING_WARNING = RailsAudit::CLI::SCHEMA_MISSING_WARNING
 
   def test_missing_subcommand_prints_usage_and_returns_non_zero
     stdout, stderr = StringIO.new, StringIO.new
@@ -60,6 +62,40 @@ class CLITest < Minitest::Test
       report = File.read(report_path)
       assert_includes report, "# rails-audit report"
       assert_includes report, "## Security"
+    end
+  end
+
+  def test_audit_against_a_target_without_schema_rb_surfaces_a_warning
+    Dir.mktmpdir do |output_dir|
+      stdout, stderr = StringIO.new, StringIO.new
+      status = RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
+        ["audit", TARGET_APP, "--output-dir", output_dir]
+      )
+
+      assert_equal 0, status, "expected success, stderr: #{stderr.string}"
+
+      document = JSON.parse(File.read(File.join(output_dir, "findings.json")))
+      assert_equal [SCHEMA_MISSING_WARNING], document.fetch("warnings")
+
+      report = File.read(File.join(output_dir, "RAILS_AUDIT_REPORT.md"))
+      assert_includes report, "## Warnings\n- #{SCHEMA_MISSING_WARNING}"
+    end
+  end
+
+  def test_audit_against_a_target_with_schema_rb_has_no_warning
+    Dir.mktmpdir do |output_dir|
+      stdout, stderr = StringIO.new, StringIO.new
+      status = RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
+        ["audit", SCHEMA_APP, "--output-dir", output_dir]
+      )
+
+      assert_equal 0, status, "expected success, stderr: #{stderr.string}"
+
+      document = JSON.parse(File.read(File.join(output_dir, "findings.json")))
+      assert_empty document.fetch("warnings")
+
+      report = File.read(File.join(output_dir, "RAILS_AUDIT_REPORT.md"))
+      refute_includes report, "## Warnings"
     end
   end
 

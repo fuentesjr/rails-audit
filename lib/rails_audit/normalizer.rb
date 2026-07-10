@@ -98,11 +98,12 @@ module RailsAudit
       end
     end
 
-    def document(target:, toolchain:, tools:, findings:)
+    def document(target:, toolchain:, tools:, findings:, warnings: [])
       {
         target: target,
         toolchain: toolchain,
         tools: tools.map { |tool| tool.reject { |key, _value| key.to_s == "runtime_s" } },
+        warnings: warnings,
         findings: canonical_sort(findings).map(&:to_h)
       }
     end

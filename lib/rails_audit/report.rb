@@ -15,7 +15,10 @@ module RailsAudit
 
     def render(document)
       findings = document.fetch(:findings)
-      blocks = [target_block(document), tools_block(document), critical_and_high_block(findings)]
+      blocks = [target_block(document), tools_block(document)]
+      warnings = document.fetch(:warnings, [])
+      blocks << warnings_block(warnings) unless warnings.empty?
+      blocks << critical_and_high_block(findings)
 
       ordered_categories(findings).each do |category|
         category_findings = findings.select { |finding| finding.fetch(:category) == category }
@@ -41,6 +44,14 @@ module RailsAudit
       "## Tools\n#{bullets.join("\n")}"
     end
     private_class_method :tools_block
+
+    def warnings_block(warnings)
+      # A reader must never mistake a quiet audit for a clean one; surface tool-inactivity
+      # (e.g. schema-dependent cops with no db/schema.rb) as loudly as findings themselves.
+      lines = ["## Warnings"] + warnings.map { |warning| "- #{warning}" }
+      lines.join("\n")
+    end
+    private_class_method :warnings_block
 
     def critical_and_high_block(findings)
       individual_findings = findings.select do |finding|

@@ -105,9 +105,22 @@ class NormalizerTest < Minitest::Test
       findings: [finding]
     )
 
-    assert_equal %i[target toolchain tools findings], document.keys
+    assert_equal %i[target toolchain tools warnings findings], document.keys
     assert_equal finding.to_h, document.fetch(:findings).first
+    assert_empty document.fetch(:warnings)
     refute_includes JSON.generate(document), "runtime_s"
+  end
+
+  def test_document_passes_through_given_warnings
+    document = RailsAudit::Normalizer.document(
+      target: TARGET_ROOT,
+      toolchain: { ruby: "4.0.1" },
+      tools: [],
+      findings: [],
+      warnings: ["db/schema.rb not found"]
+    )
+
+    assert_equal ["db/schema.rb not found"], document.fetch(:warnings)
   end
 
   private

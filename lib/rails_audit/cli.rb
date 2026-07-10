@@ -7,6 +7,14 @@ require "optparse"
 
 module RailsAudit
   class CLI
+    # rubocop-rails schema cops (Rails/UniqueValidationWithoutIndex, Rails/ThreeStateBooleanColumn, ...)
+    # read db/schema.rb directly and silently no-op when it's absent (structure.sql targets, or repos
+    # that don't commit schema.rb). Silent skips are the exact false-negative class this tool exists to
+    # surface, so we call it out explicitly instead of letting "no findings" read as "schema is fine".
+    SCHEMA_MISSING_WARNING =
+      "db/schema.rb not found — schema-dependent cops (e.g. Rails/UniqueValidationWithoutIndex, " \
+      "Rails/ThreeStateBooleanColumn) were inactive; migration cops on db/migrate are unaffected."
+
     USAGE = <<~USAGE
       Usage: rails-audit audit TARGET [options]
              rails-audit annotate FINDINGS_JSON [--output PATH]
@@ -107,10 +115,17 @@ module RailsAudit
         target: target,
         toolchain: { ruby: RUBY_VERSION, bundler: Bundler::VERSION },
         tools: [brakeman, rubocop, reek].map { |tool| tool.slice(:name, :version, :raw_count, :exit_code) },
-        findings: findings
+        findings: findings,
+        warnings: warnings_for(target)
       )
 
       write_outputs(output_dir, document)
+    end
+
+    def warnings_for(target)
+      return [] if File.exist?(File.join(target, "db", "schema.rb"))
+
+      [SCHEMA_MISSING_WARNING]
     end
 
     def write_outputs(output_dir, document)
