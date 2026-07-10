@@ -15,15 +15,11 @@ module RailsAudit
 
     def render(document)
       findings = document.fetch(:findings)
-      blocks = [target_block(document), tools_block(document)]
+      blocks = [target_block(document), tools_block(document), critical_and_high_block(findings)]
 
-      CATEGORY_ORDER.each do |category|
+      ordered_categories(findings).each do |category|
         category_findings = findings.select { |finding| finding.fetch(:category) == category }
-        # v1 rendered empty categories with a "No findings." fallback (spike-reference.md §8);
-        # skipping them entirely is simpler and loses no information the document doesn't already carry.
-        next if category_findings.empty?
-
-        blocks.concat(category_blocks(category, category_findings))
+        blocks << category_block(category, category_findings)
       end
 
       blocks << totals_by_impact_block(findings)
@@ -46,48 +42,91 @@ module RailsAudit
     end
     private_class_method :tools_block
 
-    def category_blocks(category, findings)
-      blocks = ["## #{category.capitalize}"]
-      by_impact = findings.group_by { |finding| finding.fetch(:impact) }
-
-      INDIVIDUAL_IMPACTS.each do |impact|
-        group = by_impact[impact]
-        blocks << individual_block(impact, group) if group && !group.empty?
+    def critical_and_high_block(findings)
+      individual_findings = findings.select do |finding|
+        INDIVIDUAL_IMPACTS.include?(finding.fetch(:impact))
       end
+      return "## Critical & High\n\nNone." if individual_findings.empty?
 
-      aggregate_findings = findings.reject { |finding| INDIVIDUAL_IMPACTS.include?(finding.fetch(:impact)) }
-      blocks << aggregate_block(aggregate_findings) unless aggregate_findings.empty?
+      lines = ["## Critical & High"]
+      INDIVIDUAL_IMPACTS.each do |impact|
+        impact_findings = individual_findings.select { |finding| finding.fetch(:impact) == impact }
+        next if impact_findings.empty?
 
-      blocks
+        lines << ""
+        lines << "### #{impact.capitalize}"
+        ordered_categories(impact_findings).each do |category|
+          subgroup = impact_findings.select { |finding| finding.fetch(:category) == category }
+          lines << ""
+          lines.concat(individual_subgroup_lines(category, subgroup))
+        end
+      end
+      lines.join("\n")
     end
-    private_class_method :category_blocks
+    private_class_method :critical_and_high_block
 
-    def individual_block(impact, findings)
-      lines = ["### #{impact.capitalize} (#{findings.size})"]
+    def individual_subgroup_lines(category, findings)
+      lines = ["#### #{category} (#{findings.size})"]
       findings.first(INDIVIDUAL_CAP).each do |finding|
         location = finding.fetch(:location)
         lines << "- `#{location.fetch(:file)}:#{location.fetch(:start_line)}` **#{finding.fetch(:rule)}** " \
           "— #{finding.fetch(:message)} (confidence: #{finding.fetch(:confidence)})"
       end
       lines << "- …and #{findings.size - INDIVIDUAL_CAP} more" if findings.size > INDIVIDUAL_CAP
-      lines.join("\n")
+      lines
     end
-    private_class_method :individual_block
+    private_class_method :individual_subgroup_lines
 
-    def aggregate_block(findings)
-      counts = findings.group_by { |finding| finding.fetch(:rule) }.transform_values(&:size)
-      rows = counts.sort_by { |rule, count| [-count, rule] }.first(AGGREGATE_TOP_N)
+    def category_block(category, findings)
+      individual_count = findings.count do |finding|
+        INDIVIDUAL_IMPACTS.include?(finding.fetch(:impact))
+      end
+      reference = "Critical/High: #{individual_count}."
+      if individual_count.positive?
+        reference = "Critical/High: #{individual_count} — listed individually in the Critical & High section above."
+      end
+
+      ["## #{category.capitalize}", reference, aggregate_table(findings), "Total: #{findings.size} findings."].join("\n\n")
+    end
+    private_class_method :category_block
+
+    def aggregate_table(findings)
+      groups = findings.group_by do |finding|
+        [finding.fetch(:impact), finding.fetch(:tool), finding.fetch(:rule)]
+      end
+      groups = groups.map { |key, group| [key, group.size] }
+      groups.sort_by! do |(impact, tool, rule), count|
+        [impact_rank(impact), -count, rule, tool]
+      end
+      visible_groups = groups.first(AGGREGATE_TOP_N)
 
       lines = [
-        "### Medium / Low / Info (#{findings.size} total)",
-        "",
-        "| Rule | Count |",
-        "| --- | --- |"
+        "| Impact | Rule | Count |",
+        "| --- | --- | --- |"
       ]
-      rows.each { |rule, count| lines << "| #{rule} | #{count} |" }
+      visible_groups.each do |(impact, _tool, rule), count|
+        lines << "| #{impact.capitalize} | #{rule} | #{count} |"
+      end
+
+      dropped_groups = groups.drop(AGGREGATE_TOP_N)
+      if dropped_groups.any?
+        dropped_findings = dropped_groups.sum { |_key, count| count }
+        lines << "- …and #{dropped_groups.size} more rules (#{dropped_findings} findings)"
+      end
       lines.join("\n")
     end
-    private_class_method :aggregate_block
+    private_class_method :aggregate_table
+
+    def ordered_categories(findings)
+      present = findings.map { |finding| finding.fetch(:category) }.uniq
+      CATEGORY_ORDER.select { |category| present.include?(category) } + (present - CATEGORY_ORDER).sort
+    end
+    private_class_method :ordered_categories
+
+    def impact_rank(impact)
+      IMPACT_ORDER.index(impact) || IMPACT_ORDER.size
+    end
+    private_class_method :impact_rank
 
     def totals_by_impact_block(findings)
       counts = findings.group_by { |finding| finding.fetch(:impact) }.transform_values(&:size)

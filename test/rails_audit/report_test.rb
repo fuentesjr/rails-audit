@@ -6,130 +6,111 @@ require "test_helper"
 class ReportTest < Minitest::Test
   TARGET_ROOT = "target/lobsters"
 
-  def test_renders_realistic_document_from_fixtures
+  def test_renders_impact_first_report_from_real_fixtures
     document = fixture_document
     report = RailsAudit::Report.render(document)
+    findings = document.fetch(:findings)
 
-    assert_includes report, "# rails-audit report"
-    assert_includes report, "Target: #{TARGET_ROOT}"
-    assert_includes report, "## Tools"
+    assert_includes report, "# rails-audit report\n\nTarget: #{TARGET_ROOT}"
     assert_includes report, "- brakeman 8.0.5 — 27 findings (exit 3)"
     assert_includes report, "- rubocop 1.88.2 — 11176 findings (exit 1)"
     assert_includes report, "- reek 6.5.0 — 1700 findings (exit 2)"
     refute_includes report, "runtime_s"
 
-    findings = document.fetch(:findings)
-    by_category = findings.group_by { |finding| finding[:category] }
+    assert_equal 1, report.scan(/^## Critical & High$/).size
+    assert_operator report.index("## Critical & High"), :<, report.index("## Security")
+    assert_includes report, "### Critical"
+    assert_includes report, "#### security (23)"
+    assert_includes report, "### High"
+    assert_includes report, "#### correctness (51)"
 
-    RailsAudit::Report::CATEGORY_ORDER.each do |category|
-      if by_category[category].to_a.empty?
-        refute_includes report, "## #{category.capitalize}"
-      else
-        assert_includes report, "## #{category.capitalize}"
-      end
-    end
+    lint_finding = findings.find { |finding| finding[:rule].start_with?("Lint/") }
+    location = lint_finding.fetch(:location)
+    assert_includes section(report, "Critical & High"),
+                    "- `#{location[:file]}:#{location[:start_line]}` **#{lint_finding[:rule]}** — " \
+                    "#{lint_finding[:message]} (confidence: #{lint_finding[:confidence]})"
 
-    security_critical = by_category.fetch("security").select { |finding| finding[:impact] == "critical" }
-    refute_empty security_critical
-    assert_includes report, "### Critical (#{security_critical.size})"
-    first = security_critical.first
-    location = first.fetch(:location)
-    assert_includes report,
-                     "- `#{location[:file]}:#{location[:start_line]}` **#{first[:rule]}** — " \
-                     "#{first[:message]} (confidence: #{first[:confidence]})"
-
-    assert_includes report, "### Medium / Low / Info"
-    assert_includes report, "| Rule | Count |"
+    correctness = section(report, "Correctness")
+    assert_includes correctness,
+                    "Critical/High: 51 — listed individually in the Critical & High section above."
+    assert_includes correctness, "| Impact | Rule | Count |"
+    refute_match(/^- `/m, correctness)
 
     assert_includes report, "## Totals by impact"
+    assert_includes report, "| Critical | 23 |"
+    assert_includes report, "| High | 55 |"
     assert_includes report, "## Totals by confidence"
-    assert_includes report, "| **Total** | #{findings.size} |"
+    assert_equal 2, report.scan("| **Total** | #{findings.size} |").size
   end
 
-  def test_individual_listing_caps_at_25_and_shows_overflow_marker
-    findings = 30.times.map do |index|
-      finding(category: "security", impact: "critical", rule: "SQL Injection",
-               file: "app/models/story.rb", start_line: 100 + index)
-    end
-    report = RailsAudit::Report.render(document_with(findings))
+  def test_real_fixture_overflow_markers_show_exact_dropped_counts
+    report = RailsAudit::Report.render(fixture_document)
+    leading = section(report, "Critical & High")
 
-    assert_includes report, "### Critical (30)"
-    assert_includes report, "- …and 5 more"
-    listing_lines = report.lines.select { |line| line.start_with?("- `app/models/story.rb:") }
-    assert_equal 25, listing_lines.size
+    assert_includes leading, "#### correctness (51)"
+    listing_count = subgroup(leading, "correctness").lines.count { |line| line.start_with?("- `") }
+    assert_equal 25, listing_count
+    assert_includes subgroup(leading, "correctness"), "- …and 26 more"
+
+    style = section(report, "Style")
+    assert_includes style, "- …and 63 more rules (953 findings)"
+    assert_includes style, "Total: 10944 findings."
   end
 
-  def test_aggregate_table_caps_at_top_n_sorted_by_count_desc_then_rule_asc
-    findings = (1..14).flat_map { |count| rule_group(format("Rule%02d", count), count) }
-    findings += rule_group("RuleZ", 20)
-    findings += rule_group("RuleA", 20)
-    findings += rule_group("Rule15", 19)
+  def test_zero_critical_or_high_findings_is_explicit
+    report = RailsAudit::Report.render(document_with([
+      finding(category: "style", impact: "info", rule: "Style/Foo", file: "a.rb", start_line: 1)
+    ]))
 
-    report = RailsAudit::Report.render(document_with(findings))
-    table_rows = report.lines.select { |line| line.start_with?("| Rule") && line != "| Rule | Count |\n" }
-
-    assert_equal RailsAudit::Report::AGGREGATE_TOP_N, table_rows.size
-    assert_equal "| RuleA | 20 |\n", table_rows[0]
-    assert_equal "| RuleZ | 20 |\n", table_rows[1]
-    assert_equal "| Rule15 | 19 |\n", table_rows[2]
-    refute_includes report, "| Rule02 | 2 |"
-    refute_includes report, "| Rule01 | 1 |"
+    assert_includes section(report, "Critical & High"), "None."
+    assert_includes section(report, "Style"), "Critical/High: 0."
   end
 
-  def test_category_with_only_aggregate_findings_has_no_individual_subsection
+  def test_aggregate_rows_sort_by_impact_then_count_then_rule
     findings = [
-      finding(category: "complexity", impact: "medium", rule: "Metrics/ClassLength", file: "app/models/x.rb",
-               start_line: 1),
-      finding(category: "complexity", impact: "low", rule: "Metrics/MethodLength", file: "app/models/x.rb",
-               start_line: 2)
+      *rule_group("InfoPopular", 20, impact: "info"),
+      *rule_group("MediumZ", 2, impact: "medium"),
+      *rule_group("MediumA", 2, impact: "medium"),
+      *rule_group("LowRule", 10, impact: "low")
     ]
-    report = RailsAudit::Report.render(document_with(findings))
+    rows = section(RailsAudit::Report.render(document_with(findings)), "Style")
+           .lines.grep(/^\| (?:Critical|High|Medium|Low|Info) /)
 
-    assert_includes report, "## Complexity"
-    refute_includes report, "### Critical"
-    refute_includes report, "### High"
-    assert_includes report, "### Medium / Low / Info (2 total)"
-  end
-
-  def test_skips_categories_with_no_findings
-    findings = [finding(category: "security", impact: "critical", rule: "SQL Injection", file: "a.rb", start_line: 1)]
-    report = RailsAudit::Report.render(document_with(findings))
-
-    (RailsAudit::Report::CATEGORY_ORDER - %w[security]).each do |category|
-      refute_includes report, "## #{category.capitalize}"
-    end
+    assert_equal [
+      "| Medium | MediumA | 2 |\n",
+      "| Medium | MediumZ | 2 |\n",
+      "| Low | LowRule | 10 |\n",
+      "| Info | InfoPopular | 20 |\n"
+    ], rows
   end
 
   def test_individual_line_displays_confidence
-    findings = [
+    report = RailsAudit::Report.render(document_with([
       finding(category: "security", impact: "high", rule: "Mass Assignment", file: "app/models/user.rb",
-               start_line: 12, confidence: "low", message: "boom")
-    ]
-    report = RailsAudit::Report.render(document_with(findings))
+              start_line: 12, confidence: "low", message: "boom")
+    ]))
 
-    assert_includes report, "- `app/models/user.rb:12` **Mass Assignment** — boom (confidence: low)"
+    assert_includes section(report, "Critical & High"),
+                    "- `app/models/user.rb:12` **Mass Assignment** — boom (confidence: low)"
+    refute_match(/^- `/m, section(report, "Security"))
   end
 
-  def test_footer_totals_by_impact_and_confidence
+  def test_footer_includes_zero_impact_rows_and_distinct_confidences
     findings = [
-      finding(category: "security", impact: "critical", rule: "SQLi", file: "a.rb", start_line: 1, confidence: "high"),
-      finding(category: "security", impact: "critical", rule: "SQLi", file: "a.rb", start_line: 2, confidence: "high"),
-      finding(category: "style", impact: "info", rule: "Style/Foo", file: "b.rb", start_line: 1, confidence: "medium"),
-      finding(category: "style", impact: "info", rule: "Style/Foo", file: "b.rb", start_line: 2, confidence: "low")
+      finding(category: "security", impact: "critical", rule: "SQLi", file: "a.rb", start_line: 1,
+              confidence: "high"),
+      finding(category: "style", impact: "info", rule: "Style/Foo", file: "b.rb", start_line: 1,
+              confidence: "unreviewed")
     ]
     report = RailsAudit::Report.render(document_with(findings))
 
-    assert_includes report, "| Critical | 2 |"
+    assert_includes report, "| Critical | 1 |"
     assert_includes report, "| High | 0 |"
     assert_includes report, "| Medium | 0 |"
     assert_includes report, "| Low | 0 |"
-    assert_includes report, "| Info | 2 |"
-
-    assert_includes report, "| High | 2 |"
-    assert_includes report, "| Medium | 1 |"
-    assert_includes report, "| Low | 1 |"
-
-    assert_equal 2, report.scan("| **Total** | 4 |").size
+    assert_includes report, "| Info | 1 |"
+    assert_includes report, "| High | 1 |"
+    assert_includes report, "| Unreviewed | 1 |"
   end
 
   private
@@ -157,8 +138,6 @@ class ReportTest < Minitest::Test
     JSON.parse(File.read(path))
   end
 
-  # Hand-built finding hashes matching Finding#to_h's shape, bypassing the Finding class
-  # since Report only reads a handful of fields — the document contract, not identity/hashing, is under test here.
   def finding(category:, impact:, rule:, file:, start_line:, confidence: "medium", message: "message")
     {
       id: "id",
@@ -174,9 +153,9 @@ class ReportTest < Minitest::Test
     }
   end
 
-  def rule_group(rule, count)
+  def rule_group(rule, count, impact: "info")
     count.times.map do |index|
-      finding(category: "style", impact: "info", rule: rule, file: "app/models/foo.rb", start_line: index + 1)
+      finding(category: "style", impact: impact, rule: rule, file: "app/models/foo.rb", start_line: index + 1)
     end
   end
 
@@ -187,5 +166,13 @@ class ReportTest < Minitest::Test
       tools: [{ name: "rubocop", version: "1.88.2", raw_count: findings.size, exit_code: 1 }],
       findings: findings
     }
+  end
+
+  def section(report, heading)
+    report[/^## #{Regexp.escape(heading)}\n.*?(?=^## |\z)/m]
+  end
+
+  def subgroup(leading, category)
+    leading[/^#### #{Regexp.escape(category)} \(\d+\)\n.*?(?=^#### |^### |\z)/m]
   end
 end
