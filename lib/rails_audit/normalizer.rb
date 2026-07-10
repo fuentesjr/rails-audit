@@ -73,6 +73,7 @@ module RailsAudit
           impact: Mappings.impact(tool: "reek", rule: rule),
           confidence: Mappings.confidence(tool: "reek"),
           message: smell.fetch("message"),
+          discriminator: smell["name"].to_s,
           location: location(
             file: relative_path(smell.fetch("source"), target_root),
             start_line: sorted_lines.min,
@@ -84,11 +85,11 @@ module RailsAudit
     end
 
     def normalize(brakeman:, rubocop:, reek:, target_root:)
-      canonical_sort(
+      ensure_unique_ids(canonical_sort(
         self.brakeman(brakeman, target_root: target_root) +
           self.rubocop(rubocop, target_root: target_root) +
           self.reek(reek, target_root: target_root)
-      )
+      ))
     end
 
     def canonical_sort(findings)
@@ -115,5 +116,49 @@ module RailsAudit
       { file: file, start_line: start_line, end_line: end_line, column: column, lines: lines }
     end
     private_class_method :location
+
+    def ensure_unique_ids(findings)
+      groups = findings.each_index.group_by { |index| findings[index].id }
+      used_ids = groups.filter_map { |id, indexes| id if indexes.one? }.to_h { |id| [id, true] }
+
+      groups.each_value do |indexes|
+        next if indexes.one?
+
+        ordinal = 1
+        indexes.sort_by { |index| [findings[index].message, index] }.each do |index|
+          finding = findings[index]
+
+          loop do
+            # Ordinal identities can shift when membership of a collision group changes.
+            replacement = reidentify(finding, "#{finding.discriminator}|#{ordinal}")
+            ordinal += 1
+            next if used_ids[replacement.id]
+
+            findings[index] = replacement
+            used_ids[replacement.id] = true
+            break
+          end
+        end
+      end
+
+      findings
+    end
+    private_class_method :ensure_unique_ids
+
+    def reidentify(finding, discriminator)
+      Finding.new(
+        native_fingerprint: finding.native_fingerprint,
+        tool: finding.tool,
+        rule: finding.rule,
+        category: finding.category,
+        impact: finding.impact,
+        confidence: finding.confidence,
+        message: finding.message,
+        location: finding.location,
+        context: finding.context,
+        discriminator: discriminator
+      )
+    end
+    private_class_method :reidentify
   end
 end

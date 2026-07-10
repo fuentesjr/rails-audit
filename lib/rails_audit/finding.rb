@@ -10,6 +10,7 @@ module RailsAudit
     ].freeze
 
     attr_reader(*ATTRIBUTES)
+    attr_reader :discriminator
 
     def self.identity(tool:, rule:, file:, start_line:, column:, discriminator: "")
       source = [tool, rule, file, start_line, column, discriminator].join("|")
@@ -17,7 +18,7 @@ module RailsAudit
     end
 
     def initialize(native_fingerprint:, tool:, rule:, category:, impact:, confidence:, message:,
-                   location:, context: nil)
+                   location:, context: nil, discriminator: "")
       @native_fingerprint = native_fingerprint
       @tool = tool
       @rule = rule
@@ -27,12 +28,14 @@ module RailsAudit
       @message = message
       @location = immutable_location(location)
       @context = context&.dup&.freeze
+      @discriminator = discriminator
       @id = self.class.identity(
         tool: tool,
         rule: rule,
         file: @location.fetch(:file),
         start_line: @location.fetch(:start_line),
-        column: @location.fetch(:column)
+        column: @location.fetch(:column),
+        discriminator: discriminator
       )
       freeze
     end

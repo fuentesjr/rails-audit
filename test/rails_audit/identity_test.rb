@@ -26,15 +26,13 @@ class IdentityTest < Minitest::Test
     assert_equal 2, findings.map(&:id).uniq.size
   end
 
-  def test_reek_duplicate_method_call_pair_still_collides_in_phase_one
+  def test_reek_duplicate_method_call_pair_gets_distinct_ids_from_name
     findings = RailsAudit::Normalizer.reek(
       fixture("reek_duplicate_method_call.json"),
       target_root: TARGET_ROOT
     )
 
-    # DESIGN sections 5 and 9 defer Reek's name-based discriminator to Phase 2.
-    assert_equal 1, findings.map(&:id).uniq.size
-    assert_equal "34443701043ed54d", findings.first.id
+    assert_equal 2, findings.map(&:id).uniq.size
   end
 
   private
