@@ -6,24 +6,27 @@ file gets updated. Evidence archive: `../rails-audit-spike` (read-only).
 
 ## Status
 
-Phases 1 & 2 complete (2026-07-10). Working `rails-audit audit <target>` pipeline: three
-runners → normalizer (schema v2) → renderer, with pinned toolchain, config ownership,
-compound-key identity (incl. reek `name` discriminator + ordinal uniqueness pass), and a
-CLI. Reek collisions re-measured: 140 groups → 0 on the real fixture. Rails/Performance
-cop loading verified + regression-tested. Suite green (43 runs). Next: Phase 3 (impact-first
-report restructure). Heavy coding delegated to codex, lighter tasks to Sonnet subagents.
+Phases 1–4 complete (2026-07-10) — the full productized core. `rails-audit audit <target>`
+runs the deterministic pipeline (runners → normalizer → impact-first renderer + CLI); a
+separate, off-by-default `rails-audit annotate <findings.json>` adds the LLM layer over a
+truncation-safe digest. Pinned toolchain, config ownership, collision-free compound-key
+identity, canonical sort. Suite green (49 runs, ~300 assertions).
 
-## Up next (before/alongside phase 1)
+**Paused for user decisions** before Phase 5+. Remaining phases each need a call that's the
+owner's: new tool dependencies (5), a new cop-development gem (6), the CLI-owned Exclude-list
+scope + streaming/parallelization (7), and the SimpleCov security posture (8). See "Delivery
+phases" below. Delegation model in use: heavy coding → codex, lighter tasks → Sonnet subagents.
 
-- [ ] Decide the final gem name (`rails-audit` is a placeholder, DESIGN.md §1; rename is
-      cheap only until a remote/RubyGems name exists)
-- [ ] Create GitHub remote and push (gemspec already points at
-      `fuentesjr/rails-audit`)
-- [ ] Absorb spike data as test fixtures: raw tool outputs (`../rails-audit-spike/tmp/raw/`),
-      the measured fingerprint-collision pairs (identity-spec regression cases,
-      DESIGN.md §3/§5), the exit-code/version tables (§4)
-- [ ] Set up CI to run `rake test` (scaffolded GitHub Actions workflow exists; verify it
-      once a remote exists)
+## Pre-delivery items
+
+- [ ] **Decide the final gem name** — `rails-audit` placeholder kept for now (user, this
+      session). Rename stays cheap only until a remote/RubyGems name exists.
+- [ ] **Create GitHub remote and push** — deferred (owner decision; not done autonomously).
+      gemspec already points at `fuentesjr/rails-audit`. 12 commits waiting on `main`.
+- [x] **Absorb spike data as test fixtures** — DONE: `test/fixtures/raw/*.json` (normalizer +
+      identity ground truth), collision-pair fixtures, exit-code tables encoded in runners.
+- [ ] **Verify CI** — `.github/workflows/main.yml` runs `bundle exec rake` on Ruby 4.0.1
+      (matches pin); can't validate until a remote exists.
 
 ## Delivery phases (DESIGN.md §10)
 
@@ -42,11 +45,15 @@ report restructure). Heavy coding delegated to codex, lighter tasks to Sonnet su
       collisions 140→0, combined 12,903 findings all-unique), 46fde78 (Rails/Performance
       cop-loading regression test). Also verified `plugins:`≡`require:` cop loading (138
       Rails / 52 Performance), closing the DESIGN §4 caveat. 43 tests green.
-- [ ] **Phase 3 — report/digest rework**: impact-first leading section (single individual-
+- [x] **Phase 3 — report/digest rework**: impact-first leading section (single individual-
       listing surface); `Lint/*` surfaced individually; verify truncation paths against
-      real overflow
-- [ ] **Phase 4 — LLM annotation layer, productionized**: hard timeout, automatic retry,
-      `--output-format json`; separate command, off by default
+      real overflow — DONE: commit 4ac450f (report restructure; overflow verified on real
+      fixtures: correctness …and 26 more, style …and 63 more rules/953 findings). Digest
+      builder moved to Phase 4 (built alongside its only consumer).
+- [x] **Phase 4 — LLM annotation layer, productionized**: hard timeout, automatic retry,
+      `--output-format json`; separate command, off by default — DONE: commit fbee641
+      (DigestBuilder + annotate; popen3 process-group timeout kill, retry, atomic write,
+      fail-loud; claude mocked in tests). Live `claude` binary behavior still unverified.
 - [ ] **Phase 5 — tool roster expansion**: active_record_doctor, database_consistency
       (each needs its own impact/category mapping)
 - [ ] **Phase 6 — custom thoughtbot cops extension gem** (fat model/controller,
