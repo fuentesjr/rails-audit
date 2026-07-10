@@ -3,6 +3,7 @@
 require "fileutils"
 require "json"
 require "tmpdir"
+require "yaml"
 require "test_helper"
 
 class RubocopRunnerTest < Minitest::Test
@@ -31,14 +32,13 @@ class RubocopRunnerTest < Minitest::Test
         "--format", "json", "--out", output_path
       ], observed.fetch(:argv)
       assert_equal RailsAudit::Runners::ROOT, observed.fetch(:chdir)
-      assert_equal <<~YAML, File.read(RailsAudit::Runners::RUBOCOP_CONFIG)
-        plugins:
-          - rubocop-rails
-          - rubocop-performance
-
-        AllCops:
-          NewCops: disable
-      YAML
+      config = YAML.safe_load_file(RailsAudit::Runners::RUBOCOP_CONFIG)
+      all_cops = config.fetch("AllCops")
+      assert_equal "disable", all_cops.fetch("NewCops")
+      assert_equal %w[**/db/schema.rb **/bin/**/* **/vendor/**/* **/node_modules/**/* **/tmp/**/*],
+                   all_cops.fetch("Exclude")
+      refute_includes all_cops.fetch("Exclude"), "**/db/migrate/**/*",
+                       "migrations are real code and must never be excluded"
       assert_equal JSON.parse(File.read(raw_fixture_path)), result.fetch(:payload)
       assert_equal "rubocop", result.fetch(:name)
       assert_equal "1.88.2", result.fetch(:version)

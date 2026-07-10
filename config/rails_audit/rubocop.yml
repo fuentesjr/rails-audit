@@ -4,3 +4,25 @@ plugins:
 
 AllCops:
   NewCops: disable
+  # Config ownership (--config) bypasses the target's own AllCops: Exclude
+  # entirely, not just its plugins/require list (DESIGN.md §9). This list
+  # is deliberately minimal: this project's whole premise is no silent
+  # false negatives, so we exclude ONLY generated/non-application files
+  # that are never hand-edited for quality. db/migrate/** is real,
+  # hand-written code that can carry real findings and is intentionally
+  # NOT excluded here — only the generated db/schema.rb is.
+  #
+  # Patterns are prefixed with '**/' rather than written relative-to-root
+  # (e.g. 'bin/**/*'). RuboCop resolves relative Exclude entries relative
+  # to the directory of the config file that defines them — here, this
+  # gem's own config/rails_audit/, not the target app being scanned, which
+  # always lives elsewhere on disk. Verified empirically: unprefixed
+  # entries silently matched nothing against a real target and let
+  # db/schema.rb's offenses through uncaught — exactly the kind of silent
+  # false negative this list exists to prevent.
+  Exclude:
+    - '**/db/schema.rb'
+    - '**/bin/**/*'
+    - '**/vendor/**/*'
+    - '**/node_modules/**/*'
+    - '**/tmp/**/*'
