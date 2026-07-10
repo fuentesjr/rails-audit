@@ -40,8 +40,15 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  # Uncomment to register a new dependency of your gem
-  # spec.add_dependency "example-gem", "~> 1.0"
+  # Pinned analysis toolchain. Versions are exact, not pessimistic: the
+  # determinism contract (docs/DESIGN.md §4) scopes the exit-code, impact, and
+  # category tables to these exact versions. Bumping any tool requires
+  # re-verifying its exit-code table and re-checking for schema drift first.
+  spec.add_dependency "brakeman", "8.0.5"
+  spec.add_dependency "reek", "6.5.0"
+  spec.add_dependency "rubocop", "1.88.2"
+  spec.add_dependency "rubocop-performance", "1.26.1"
+  spec.add_dependency "rubocop-rails", "2.35.5"
 
   # For more information and examples about making a new gem, check out our
   # guide at: https://guides.rubygems.org/make-your-own-gem/
