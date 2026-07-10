@@ -6,3 +6,8 @@
 /pkg/
 /spec/reports/
 /tmp/
+
+# Working/scratch files (machine-specific or transient; not committed)
+/docs/notes/
+/implementation-notes.md
+/CODEX_TASK.md
