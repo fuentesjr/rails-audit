@@ -6,16 +6,18 @@ file gets updated. Evidence archive: `../rails-audit-spike` (read-only).
 
 ## Status
 
-Phases 1–4 complete (2026-07-10) — the full productized core. `rails-audit audit <target>`
-runs the deterministic pipeline (runners → normalizer → impact-first renderer + CLI); a
-separate, off-by-default `rails-audit annotate <findings.json>` adds the LLM layer over a
-truncation-safe digest. Pinned toolchain, config ownership, collision-free compound-key
-identity, canonical sort. Suite green (49 runs, ~300 assertions).
+Phases 1–5 complete + Phase 7 Exclude slice (2026-07-10). `rails-audit audit <target>` runs
+the deterministic pipeline (runners → normalizer → impact-first renderer + CLI); a separate,
+off-by-default `rails-audit annotate <findings.json>` adds the LLM layer over a truncation-safe
+digest. Pinned toolchain, config ownership, collision-free compound-key identity, canonical
+sort, static schema cops (with schema-absence surfaced). Suite green (57 runs, 411 assertions).
+CI green; pushed to origin.
 
-**Paused for user decisions** before Phase 5+. Remaining phases each need a call that's the
-owner's: new tool dependencies (5), a new cop-development gem (6), the CLI-owned Exclude-list
-scope + streaming/parallelization (7), and the SimpleCov security posture (8). See "Delivery
-phases" below. Delegation model in use: heavy coding → codex, lighter tasks → Sonnet subagents.
+**Paused for owner decisions** before Phase 6+. Remaining: a new cop-development gem (6), the
+rest of Phase 7 (findings.json streaming = product call; runner parallelization = optional),
+and the execution-tier proposal (8: SimpleCov + the reclassified active_record_doctor /
+database_consistency). Delegation model: heavy coding → codex, lighter tasks → Sonnet subagents,
+Fable as advisor on forks (used it for the Phase 5 redirect).
 
 ## Pre-delivery items
 
@@ -54,12 +56,13 @@ phases" below. Delegation model in use: heavy coding → codex, lighter tasks �
       `--output-format json`; separate command, off by default — DONE: commit fbee641
       (DigestBuilder + annotate; popen3 process-group timeout kill, retry, atomic write,
       fail-loud; claude mocked in tests). Live `claude` binary behavior still unverified.
-- [ ] **Phase 5 — tool roster expansion (REDIRECTED 2026-07-10)**: enable + map + verify the
+- [x] **Phase 5 — tool roster expansion (REDIRECTED 2026-07-10)**: enable + map + verify the
       static schema/migration cops already shipped by pinned rubocop-rails
       (`Rails/UniqueValidationWithoutIndex` et al.; static `db/schema.rb` parse, stays
-      deterministic). active_record_doctor + database_consistency were RECLASSIFIED to Phase 8
-      (they require booting the target + a live DB = execution tier; see DESIGN §8/§9). Owner
-      approved the redirect.
+      deterministic). active_record_doctor + database_consistency RECLASSIFIED to Phase 8
+      (they require booting the target + a live DB; see DESIGN §8/§9). Owner approved the redirect.
+      — DONE: commits 395d854 (design amendment), 7ad0502 (cops + runner fix: root-caused &
+      fixed the schema-loader/chdir silent no-op), 99d7670 (schema-absence surfaced in report).
 - [ ] **Phase 6 — custom thoughtbot cops extension gem** (fat model/controller,
       service-object detection — not de-risked by the spike)
 - [~] **Phase 7 — remaining scale/config follow-ups** (validation spikes themselves are
