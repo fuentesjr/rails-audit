@@ -11,3 +11,4 @@ module RailsAudit
 end
 
 require_relative "rails_audit/runners"
+require_relative "rails_audit/cli"
