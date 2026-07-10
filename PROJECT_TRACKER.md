@@ -58,9 +58,11 @@ phases" below. Delegation model in use: heavy coding → codex, lighter tasks �
       (each needs its own impact/category mapping)
 - [ ] **Phase 6 — custom thoughtbot cops extension gem** (fat model/controller,
       service-object detection — not de-risked by the spike)
-- [ ] **Phase 7 — remaining scale/config follow-ups** (validation spikes themselves are
-      done): CLI-owned baseline `Exclude` list; in-memory `findings.json` upper-bound /
-      streaming decision; optional runner parallelization
+- [~] **Phase 7 — remaining scale/config follow-ups** (validation spikes themselves are
+      done): CLI-owned baseline `Exclude` list — DONE (commit c7a39f8; minimal, `**/`-prefixed,
+      false-negative-safe; caught that unprefixed patterns are a silent no-op). REMAINING
+      (need owner input): in-memory `findings.json` upper-bound / streaming decision (product
+      call, §9); optional runner parallelization (modest perf win, adds concurrency surface).
 - [ ] **Phase 8 — SimpleCov as its own proposal** (different trust/execution model:
       requires running the target's test suite)
 
