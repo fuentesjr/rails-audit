@@ -6,10 +6,12 @@ file gets updated. Evidence archive: `../rails-audit-spike` (read-only).
 
 ## Status
 
-Phase 1 complete (2026-07-10). Working `rails-audit audit <target>` pipeline: three runners
-→ normalizer (schema v2) → renderer, with pinned toolchain, config ownership, compound-key
-identity, and a CLI. Suite green (40 runs). Next: Phase 2 (reek discriminator + collision
-re-measurement). Heavy coding delegated to codex, lighter tasks to Sonnet subagents.
+Phases 1 & 2 complete (2026-07-10). Working `rails-audit audit <target>` pipeline: three
+runners → normalizer (schema v2) → renderer, with pinned toolchain, config ownership,
+compound-key identity (incl. reek `name` discriminator + ordinal uniqueness pass), and a
+CLI. Reek collisions re-measured: 140 groups → 0 on the real fixture. Rails/Performance
+cop loading verified + regression-tested. Suite green (43 runs). Next: Phase 3 (impact-first
+report restructure). Heavy coding delegated to codex, lighter tasks to Sonnet subagents.
 
 ## Up next (before/alongside phase 1)
 
@@ -25,15 +27,21 @@ re-measurement). Heavy coding delegated to codex, lighter tasks to Sonnet subage
 
 ## Delivery phases (DESIGN.md §10)
 
-- [ ] **Phase 1 — from-scratch implementation of the spike's scope** (TDD; red-green from
+- [x] **Phase 1 — from-scratch implementation of the spike's scope** (TDD; red-green from
       fixtures): three runners → normalizer → renderer; pinned Gemfile.lock; CLI-owned
       rubocop config via `--config` + `plugins:`; brakeman-ignore override by default
       (opt-in to respect); version-scoped exit-code tables; schema v2
       (`impact`/`confidence`, compound-key identity, no reek discriminator yet);
       canonical sort; no `runtime_s` in comparable output; no LLM layer
-- [ ] **Phase 2 — close the silent-false-negative gaps, re-measure**: integrate the
+      — DONE: commits 11010a0 (M1 core), fe323ea (M2 runners), b8cac7d (M3 renderer),
+      f5d6afb (M4 CLI). 40 tests green.
+- [x] **Phase 2 — close the silent-false-negative gaps, re-measure**: integrate the
       CLI-owned rubocop config into the CLI proper (cops verified firing in micro-spike A);
       implement the reek discriminator and re-run collision measurement
+      — DONE: commits e2d8a88 (reek `name` discriminator + ordinal uniqueness pass; reek
+      collisions 140→0, combined 12,903 findings all-unique), 46fde78 (Rails/Performance
+      cop-loading regression test). Also verified `plugins:`≡`require:` cop loading (138
+      Rails / 52 Performance), closing the DESIGN §4 caveat. 43 tests green.
 - [ ] **Phase 3 — report/digest rework**: impact-first leading section (single individual-
       listing surface); `Lint/*` surfaced individually; verify truncation paths against
       real overflow
