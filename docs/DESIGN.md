@@ -580,9 +580,30 @@ CI gate or pre-commit hook without an explicit opt-in and a generous timeout bud
   (more output, less memory) or brakeman (`implementation-notes-spikeB.md`).
 
 **v2 candidates — none spiked, all Proposed:**
-- **active_record_doctor** — schema/index/association sanity checks. Not run in the
-  spike; would need its own impact/category mapping built from scratch, same as reek.
-- **database_consistency** — schema-vs-model consistency checks. Same caveat.
+- **Static schema/migration cops (rubocop-rails, already in the pinned toolchain)** — the
+  in-model way to get a slice of schema-sanity coverage without changing the execution model.
+  `rubocop-rails` ships a static `db/schema.rb` parser (`schema_loader.rb`) behind cops like
+  `Rails/UniqueValidationWithoutIndex` (uniqueness validation lacking a unique index — the
+  flagship active_record_doctor check), `Rails/ThreeStateBooleanColumn`,
+  `Rails/UnusedIgnoredColumns`, plus migration-file cops (`Rails/NotNullColumn`,
+  `Rails/ReversibleMigration`, ...). All read committed source (`db/schema.rb`, `db/migrate/**`),
+  so they stay inside the determinism contract. **This is Phase 5** (§10). Known gap: these cops
+  silently do nothing when `db/schema.rb` is absent (a `structure.sql`-only target, or schema not
+  committed) — see §9.
+- **active_record_doctor** and **database_consistency** — **RECLASSIFIED to the execution tier
+  (Phase 8), NOT Phase 5.** Reconnaissance (2026-07-10, source-cited) established that both
+  require **booting the target Rails app in-process** (running all initializers, eager-loading
+  every model) **and a live database connection** — active_record_doctor is a rake task depending
+  on Rails' `:environment` + `Rails.application.eager_load!`; database_consistency directly
+  `require`s the target's own `config/boot.rb`/`config/environment.rb`. Neither emits JSON (plain
+  text only); database_consistency's `--autofix`/`install`/`todo` modes **mutate the target repo**;
+  and results depend on live DB schema state rather than committed source. They also can't honor the
+  toolchain-pinning contract (§4): they run inside the *target's* bundle, so the effective tool
+  version floats with the target's Gemfile, not our `Gemfile.lock`. This is the **same
+  trust/execution class as SimpleCov** — arbitrary execution of untrusted cloned target code — and
+  it would fail outright on the project's own validation targets (Mastodon/Discourse don't
+  `eager_load!` without secrets/`master.key`/Redis/Postgres). Scoped and reviewed as its own
+  decision (Phase 8), never folded into the static pipeline.
 - **Custom thoughtbot cops** — fat model (>200 lines / >15 public methods), fat
   controller actions (>15 lines), and service-object-in-`app/services`-with-`.call`
   detection, per thoughtbot's published skill instructions (`SKILL.md`,
@@ -682,6 +703,14 @@ found while drafting this document:
 - **Category taxonomy rule-level table (§5)** — the design-vs-complexity fix is proposed
   at illustrative granularity only; a full table covering every rule in the v1 roster
   (let alone v2 candidates) has not been built or reviewed.
+- **New: schema cops silently no-op when `db/schema.rb` is absent (Phase 5).** The
+  rubocop-rails schema-aware cops (`Rails/UniqueValidationWithoutIndex`, etc.) parse
+  `db/schema.rb` and do nothing if it's missing — a `structure.sql`-only target, or a repo that
+  doesn't commit its schema, gets zero schema coverage with no signal that a check was skipped.
+  This is exactly the silent-false-negative class the project exists to surface. Mitigation:
+  the runner/report should detect an absent `db/schema.rb` at audit time and note it in the report
+  header ("schema cops inactive — no db/schema.rb found") rather than letting absence read as
+  "clean." Not yet implemented.
 - **`enforce_hard_cap` digest backstop** — never exercised, real or synthetic; low risk
   but genuinely unverified (`implementation-notes-llm.md`).
 - **Report restructure to an impact-first leading section (§6)** — proposed but not
@@ -717,9 +746,18 @@ regression cases, and the verified exit-code/version tables.
 4. **LLM annotation layer, productionized.** Hard timeout, automatic retry,
    `--output-format json` for cost/error diagnostics, per §7. Still off-by-default,
    still a separate command.
-5. **Tool roster expansion: active_record_doctor, database_consistency.** Each requires
-   building and reviewing its own impact/category mapping from scratch, same as reek's
-   in phase 1 — no shortcuts available from this spike.
+5. **Tool roster expansion: static schema/migration cops (rubocop-rails).** Enable and verify
+   the schema-aware cops that ship with the already-pinned `rubocop-rails` and read committed
+   source statically (`Rails/UniqueValidationWithoutIndex` is enabled by default; the `pending`
+   ones — `Rails/ThreeStateBooleanColumn`, `Rails/UnusedIgnoredColumns`, and pending migration
+   cops — need explicit `Enabled: true` in the CLI-owned config). Add per-cop impact/category
+   rows (§5): schema-integrity cops warrant higher impact than the `Rails/*` department default,
+   since a uniqueness validation without a unique index is a real data-integrity bug, not style.
+   Verify against a fixture target shipping `db/schema.rb`. **Reclassified out of this phase:**
+   active_record_doctor and database_consistency — they require booting the target + a live DB
+   (§8), so they move to Phase 8's execution tier, not here. Caution: the Phase-7 `Exclude` list
+   drops `db/schema.rb` from *linting*, which is correct — the schema loader reads it as data, not
+   as an inspected file — but `db/migrate/**` must stay lintable or the migration cops go dark.
 6. **Custom thoughtbot cops extension gem.** New cop development (fat model/controller,
    service-object detection) — genuinely new work, not de-risked by this spike at all.
 7. **Scale and config-landmine validation — DONE via micro-spikes, follow-ups remain.**
@@ -728,5 +766,11 @@ regression cases, and the verified exit-code/version tables.
    cover: a CLI-owned `Exclude` list (§9), a decision on in-memory `findings.json` upper
    bounds/streaming (§9), and — optionally, cheaply — parallelizing the runners (§4) since
    serial execution at Discourse's scale takes ~7 minutes end-to-end.
-8. **SimpleCov, as its own decision.** Separate proposal, given the different trust/
-   execution model (§8) — not bundled into any of the above phases.
+8. **Execution-tier tools — SimpleCov, active_record_doctor, database_consistency — as their
+   own decision.** Separate proposal, given the shared trust/execution model (§8): all three
+   require executing untrusted target code — SimpleCov runs the target's test suite;
+   active_record_doctor and database_consistency boot the target app in-process and connect to a
+   live database. This tier needs a sandboxing/opt-in design (ephemeral throwaway DB, container
+   isolation, arbitrary-code-execution acceptance) and can't honor the static pipeline's
+   determinism/pinning contracts as-is. Not bundled into any of the above phases; scoped and
+   reviewed separately.

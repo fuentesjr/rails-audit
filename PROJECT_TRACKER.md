@@ -54,8 +54,12 @@ phases" below. Delegation model in use: heavy coding → codex, lighter tasks �
       `--output-format json`; separate command, off by default — DONE: commit fbee641
       (DigestBuilder + annotate; popen3 process-group timeout kill, retry, atomic write,
       fail-loud; claude mocked in tests). Live `claude` binary behavior still unverified.
-- [ ] **Phase 5 — tool roster expansion**: active_record_doctor, database_consistency
-      (each needs its own impact/category mapping)
+- [ ] **Phase 5 — tool roster expansion (REDIRECTED 2026-07-10)**: enable + map + verify the
+      static schema/migration cops already shipped by pinned rubocop-rails
+      (`Rails/UniqueValidationWithoutIndex` et al.; static `db/schema.rb` parse, stays
+      deterministic). active_record_doctor + database_consistency were RECLASSIFIED to Phase 8
+      (they require booting the target + a live DB = execution tier; see DESIGN §8/§9). Owner
+      approved the redirect.
 - [ ] **Phase 6 — custom thoughtbot cops extension gem** (fat model/controller,
       service-object detection — not de-risked by the spike)
 - [~] **Phase 7 — remaining scale/config follow-ups** (validation spikes themselves are
@@ -63,8 +67,10 @@ phases" below. Delegation model in use: heavy coding → codex, lighter tasks �
       false-negative-safe; caught that unprefixed patterns are a silent no-op). REMAINING
       (need owner input): in-memory `findings.json` upper-bound / streaming decision (product
       call, §9); optional runner parallelization (modest perf win, adds concurrency surface).
-- [ ] **Phase 8 — SimpleCov as its own proposal** (different trust/execution model:
-      requires running the target's test suite)
+- [ ] **Phase 8 — execution-tier tools as their own proposal** (shared trust/execution model:
+      SimpleCov runs the target's test suite; active_record_doctor + database_consistency boot
+      the target app + connect to a live DB). Needs a sandboxing/opt-in design; can't honor the
+      static pipeline's determinism/pinning contracts as-is.
 
 ## Open design items
 
