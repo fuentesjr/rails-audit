@@ -607,10 +607,18 @@ CI gate or pre-commit hook without an explicit opt-in and a generous timeout bud
 - **Custom thoughtbot cops** — fat model (>200 lines / >15 public methods), fat
   controller actions (>15 lines), and service-object-in-`app/services`-with-`.call`
   detection, per thoughtbot's published skill instructions (`SKILL.md`,
-  github.com/thoughtbot/rails-audit-thoughtbot) — ships as a rubocop extension gem owned
-  by this project. This is a **proposed architecture, not spiked** — the spike explicitly
-  excluded custom cops from scope (`SPIKE_PLAN.md`, "Out of scope"). Building it means
-  designing and testing new cops from scratch; nothing in the spike de-risks that work.
+  github.com/thoughtbot/rails-audit-thoughtbot). This is a **proposed architecture, not
+  spiked** — the spike explicitly excluded custom cops from scope (`SPIKE_PLAN.md`, "Out of
+  scope"). Building it means designing and testing new cops from scratch; nothing in the
+  spike de-risks that work. **Packaging decision (Phase 6):** the design originally called for
+  a *separate* extension gem; we instead ship the cops **in-repo** under `RuboCop::Cop::RailsAudit::*`
+  (`lib/rails_audit/cops/`), loaded into the pinned rubocop via the CLI-owned config, since a
+  standalone gem is premature for a single consumer (YAGNI). Extract to a separate gem only if an
+  external consumer ever needs the cops independently. Loading these custom cops into the
+  subprocess rubocop is itself a silent-false-negative risk (like the schema-loader/`chdir` and
+  `Exclude`-relative-path issues already found): if the require path doesn't resolve, the cops
+  never register and produce zero offenses with no signal — so loading must be verified to
+  actually fire through the real runner, not merely configured.
 - **RubyCritic** — also explicitly out of the spike's scope (`SPIKE_PLAN.md`). Brief,
   unspiked assessment only: it wraps reek/flog/flay into an HTML dashboard; if added, it
   would introduce yet another un-owned scoring scheme (flog's complexity score) needing
@@ -760,8 +768,11 @@ regression cases, and the verified exit-code/version tables.
    (§8), so they move to Phase 8's execution tier, not here. Caution: the Phase-7 `Exclude` list
    drops `db/schema.rb` from *linting*, which is correct — the schema loader reads it as data, not
    as an inspected file — but `db/migrate/**` must stay lintable or the migration cops go dark.
-6. **Custom thoughtbot cops extension gem.** New cop development (fat model/controller,
-   service-object detection) — genuinely new work, not de-risked by this spike at all.
+6. **Custom thoughtbot cops (in-repo, not a separate gem — see §8).** New cop development
+   (fat model/controller, service-object detection) under `RuboCop::Cop::RailsAudit::*`, loaded
+   into the pinned rubocop via the CLI-owned config and mapped in §5. Genuinely new work, not
+   de-risked by the spike. Loading through the subprocess runner must be verified to actually
+   fire (silent-false-negative risk).
 7. **Scale and config-landmine validation — DONE via micro-spikes, follow-ups remain.**
    Both were run: micro-spike A (Mastodon, missing-gem `.rubocop.yml`) and micro-spike B
    (Discourse, 10,679 files) — see §3, §4, §9. Remaining work this phase should still
