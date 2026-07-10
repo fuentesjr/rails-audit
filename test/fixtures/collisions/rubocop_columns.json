@@ -1,0 +1,42 @@
+{
+  "files": [
+    {
+      "path": "Gemfile",
+      "offenses": [
+        {
+          "severity": "convention",
+          "cop_name": "Style/StringLiterals",
+          "message": "Prefer single-quoted strings when you don't need string interpolation or special symbols.",
+          "location": {
+            "start_line": 18,
+            "start_column": 5,
+            "last_line": 18,
+            "last_column": 21,
+            "length": 17,
+            "line": 18,
+            "column": 5
+          }
+        },
+        {
+          "severity": "convention",
+          "cop_name": "Style/StringLiterals",
+          "message": "Prefer single-quoted strings when you don't need string interpolation or special symbols.",
+          "location": {
+            "start_line": 18,
+            "start_column": 24,
+            "last_line": 18,
+            "last_column": 31,
+            "length": 8,
+            "line": 18,
+            "column": 24
+          }
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "offense_count": 2,
+    "target_file_count": 1,
+    "inspected_file_count": 1
+  }
+}

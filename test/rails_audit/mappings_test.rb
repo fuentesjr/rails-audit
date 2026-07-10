@@ -1,0 +1,65 @@
+# frozen_string_literal: true
+
+require "test_helper"
+
+class MappingsTest < Minitest::Test
+  def test_tables_are_scoped_to_the_pinned_tool_versions
+    assert_equal(
+      { brakeman: "8.0.5", rubocop: "1.88.2", reek: "6.5.0" },
+      RailsAudit::Mappings::TOOL_VERSIONS
+    )
+  end
+
+  def test_brakeman_impact_and_confidence_are_independent
+    assert_equal "critical", impact("brakeman", "SQL Injection")
+    assert_equal "critical", impact("brakeman", "Command Injection")
+    assert_equal "critical", impact("brakeman", "RCE")
+    assert_equal "critical", impact("brakeman", "Cross-Site Scripting")
+    assert_equal "high", impact("brakeman", "Mass Assignment")
+    assert_equal "high", impact("brakeman", "File Access")
+    assert_equal "high", impact("brakeman", "Unknown Warning")
+
+    assert_equal "high", confidence("brakeman", "High")
+    assert_equal "medium", confidence("brakeman", "Medium")
+    assert_equal "low", confidence("brakeman", "Weak")
+    assert_equal "medium", confidence("brakeman", "Unexpected")
+  end
+
+  def test_rubocop_uses_department_defaults
+    assert_mapping "rubocop", "Security/IoMethods", impact: "high", category: "security"
+    assert_mapping "rubocop", "Lint/UselessAssignment", impact: "high", category: "correctness"
+    assert_mapping "rubocop", "Rails/SkipsModelValidations", impact: "low", category: "rails"
+    assert_mapping "rubocop", "Performance/MapCompact", impact: "low", category: "performance"
+    assert_mapping "rubocop", "Metrics/MethodLength", impact: "medium", category: "complexity"
+    assert_mapping "rubocop", "Style/StringLiterals", impact: "info", category: "style"
+    assert_mapping "rubocop", "Unknown/Example", impact: "low", category: "style"
+    assert_equal "medium", confidence("rubocop", "fatal")
+  end
+
+  def test_reek_uses_rule_family_defaults
+    assert_mapping "reek", "TooManyStatements", impact: "medium", category: "complexity"
+    assert_mapping "reek", "FeatureEnvy", impact: "medium", category: "complexity"
+    assert_mapping "reek", "DuplicateMethodCall", impact: "low", category: "design"
+    assert_mapping "reek", "DataClump", impact: "low", category: "design"
+    assert_mapping "reek", "NilCheck", impact: "low", category: "design"
+    assert_mapping "reek", "MissingSafeMethod", impact: "low", category: "design"
+    assert_mapping "reek", "UncommunicativeVariableName", impact: "info", category: "style"
+    assert_mapping "reek", "UnknownSmell", impact: "low", category: "design"
+    assert_equal "medium", confidence("reek", nil)
+  end
+
+  private
+
+  def impact(tool, rule)
+    RailsAudit::Mappings.impact(tool: tool, rule: rule)
+  end
+
+  def confidence(tool, raw_confidence)
+    RailsAudit::Mappings.confidence(tool: tool, raw_confidence: raw_confidence)
+  end
+
+  def assert_mapping(tool, rule, impact:, category:)
+    assert_equal impact, RailsAudit::Mappings.impact(tool: tool, rule: rule)
+    assert_equal category, RailsAudit::Mappings.category(tool: tool, rule: rule)
+  end
+end

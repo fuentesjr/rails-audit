@@ -1,0 +1,20 @@
+[
+  {
+    "context": "ApplicationController#find_user_from_rss_token",
+    "lines": [99, 100],
+    "message": "calls 'params[:token]' 2 times",
+    "smell_type": "DuplicateMethodCall",
+    "source": "target/lobsters/app/controllers/application_controller.rb",
+    "name": "params[:token]",
+    "count": 2
+  },
+  {
+    "context": "ApplicationController#find_user_from_rss_token",
+    "lines": [99, 100],
+    "message": "calls 'params[:token].to_s' 2 times",
+    "smell_type": "DuplicateMethodCall",
+    "source": "target/lobsters/app/controllers/application_controller.rb",
+    "name": "params[:token].to_s",
+    "count": 2
+  }
+]

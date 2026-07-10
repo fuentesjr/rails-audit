@@ -1,0 +1,22 @@
+{
+  "warnings": [
+    {
+      "warning_type": "Cross-Site Scripting",
+      "fingerprint": "5a23e7df4682cd1814c104bb64c46b2c669e19b4e46af07d04ac70d5ceb452d2",
+      "file": "app/views/comments/_comment.html.erb",
+      "line": 155,
+      "message": "Unescaped model attribute",
+      "confidence": "Medium",
+      "check_name": "CrossSiteScripting"
+    },
+    {
+      "warning_type": "Cross-Site Scripting",
+      "fingerprint": "5a23e7df4682cd1814c104bb64c46b2c669e19b4e46af07d04ac70d5ceb452d2",
+      "file": "app/views/comments/_comment.html.erb",
+      "line": 158,
+      "message": "Unescaped model attribute",
+      "confidence": "Medium",
+      "check_name": "CrossSiteScripting"
+    }
+  ]
+}

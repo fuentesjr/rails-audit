@@ -1,0 +1,119 @@
+# frozen_string_literal: true
+
+module RailsAudit
+  module Normalizer
+    # RuboCop and Reek emit no native fingerprint; nil keeps that field's meaning distinct from id.
+    module_function
+
+    def brakeman(payload, target_root:)
+      payload.fetch("warnings").map do |warning|
+        raw_context = warning["location"] || {}
+        context = if raw_context["class"] || raw_context["method"]
+                    { class: raw_context["class"], method: raw_context["method"] }
+                  end
+        file = relative_path(warning.fetch("file"), target_root)
+        line = warning.fetch("line")
+        rule = warning.fetch("warning_type")
+
+        Finding.new(
+          native_fingerprint: warning.fetch("fingerprint"),
+          tool: "brakeman",
+          rule: rule,
+          category: Mappings.category(tool: "brakeman", rule: rule),
+          impact: Mappings.impact(tool: "brakeman", rule: rule),
+          confidence: Mappings.confidence(
+            tool: "brakeman",
+            raw_confidence: warning["confidence"]
+          ),
+          message: warning.fetch("message"),
+          location: location(file: file, start_line: line, end_line: line),
+          context: context
+        )
+      end
+    end
+
+    def rubocop(payload, target_root:)
+      payload.fetch("files").flat_map do |raw_file|
+        file = relative_path(raw_file.fetch("path"), target_root)
+
+        raw_file.fetch("offenses").map do |offense|
+          raw_location = offense.fetch("location")
+          rule = offense.fetch("cop_name")
+
+          Finding.new(
+            native_fingerprint: nil,
+            tool: "rubocop",
+            rule: rule,
+            category: Mappings.category(tool: "rubocop", rule: rule),
+            impact: Mappings.impact(tool: "rubocop", rule: rule),
+            confidence: Mappings.confidence(tool: "rubocop"),
+            message: offense.fetch("message"),
+            location: location(
+              file: file,
+              start_line: raw_location.fetch("start_line"),
+              end_line: raw_location.fetch("last_line"),
+              column: raw_location.fetch("start_column")
+            )
+          )
+        end
+      end
+    end
+
+    def reek(payload, target_root:)
+      payload.map do |smell|
+        raw_lines = smell.fetch("lines")
+        sorted_lines = raw_lines.sort
+        rule = smell.fetch("smell_type")
+
+        Finding.new(
+          native_fingerprint: nil,
+          tool: "reek",
+          rule: rule,
+          category: Mappings.category(tool: "reek", rule: rule),
+          impact: Mappings.impact(tool: "reek", rule: rule),
+          confidence: Mappings.confidence(tool: "reek"),
+          message: smell.fetch("message"),
+          location: location(
+            file: relative_path(smell.fetch("source"), target_root),
+            start_line: sorted_lines.min,
+            end_line: sorted_lines.max,
+            lines: sorted_lines.size > 2 ? sorted_lines : nil
+          )
+        )
+      end
+    end
+
+    def normalize(brakeman:, rubocop:, reek:, target_root:)
+      canonical_sort(
+        self.brakeman(brakeman, target_root: target_root) +
+          self.rubocop(rubocop, target_root: target_root) +
+          self.reek(reek, target_root: target_root)
+      )
+    end
+
+    def canonical_sort(findings)
+      findings.sort_by do |finding|
+        [finding.location.fetch(:file), finding.location.fetch(:start_line), finding.tool, finding.rule]
+      end
+    end
+
+    def document(target:, toolchain:, tools:, findings:)
+      {
+        target: target,
+        toolchain: toolchain,
+        tools: tools.map { |tool| tool.reject { |key, _value| key.to_s == "runtime_s" } },
+        findings: canonical_sort(findings).map(&:to_h)
+      }
+    end
+
+    def relative_path(path, target_root)
+      path.delete_prefix("#{target_root.delete_suffix("/")}/")
+    end
+    private_class_method :relative_path
+
+    def location(file:, start_line:, end_line:, column: nil, lines: nil)
+      { file: file, start_line: start_line, end_line: end_line, column: column, lines: lines }
+    end
+    private_class_method :location
+  end
+end
