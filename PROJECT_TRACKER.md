@@ -6,8 +6,10 @@ file gets updated. Evidence archive: `../rails-audit-spike` (read-only).
 
 ## Status
 
-Pre-implementation. Workspace scaffolded (gem skeleton, Minitest, design doc adopted as
-`docs/DESIGN.md`), no product code yet.
+Phase 1 complete (2026-07-10). Working `rails-audit audit <target>` pipeline: three runners
+→ normalizer (schema v2) → renderer, with pinned toolchain, config ownership, compound-key
+identity, and a CLI. Suite green (40 runs). Next: Phase 2 (reek discriminator + collision
+re-measurement). Heavy coding delegated to codex, lighter tasks to Sonnet subagents.
 
 ## Up next (before/alongside phase 1)
 
