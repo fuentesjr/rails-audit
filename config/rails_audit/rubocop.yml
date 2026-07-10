@@ -26,3 +26,15 @@ AllCops:
     - '**/vendor/**/*'
     - '**/node_modules/**/*'
     - '**/tmp/**/*'
+
+Rails/AddColumnIndex:
+  Enabled: true
+
+Rails/DangerousColumnNames:
+  Enabled: true
+
+Rails/MigrationClassName:
+  Enabled: true
+
+Rails/ThreeStateBooleanColumn:
+  Enabled: true

@@ -39,6 +39,15 @@ module RailsAudit
       "Naming" => { impact: "info", category: "style" }.freeze
     }.freeze
     RUBOCOP_DEFAULT = { impact: "low", category: "style" }.freeze
+    RUBOCOP_RULES = {
+      "Rails/UniqueValidationWithoutIndex" => { impact: "high", category: "rails" }.freeze,
+      "Rails/AddColumnIndex" => { impact: "medium", category: "rails" }.freeze,
+      "Rails/DangerousColumnNames" => { impact: "medium", category: "rails" }.freeze,
+      "Rails/MigrationClassName" => { impact: "medium", category: "rails" }.freeze,
+      "Rails/NotNullColumn" => { impact: "medium", category: "rails" }.freeze,
+      "Rails/ReversibleMigration" => { impact: "medium", category: "rails" }.freeze,
+      "Rails/ThreeStateBooleanColumn" => { impact: "medium", category: "rails" }.freeze
+    }.freeze
 
     REEK_COMPLEXITY_RULES = %w[
       ClassLength FeatureEnvy LargeClass LongParameterList NestedIterators
@@ -94,7 +103,7 @@ module RailsAudit
 
     def rubocop_mapping(rule)
       department = rule.split("/", 2).first
-      RUBOCOP_DEPARTMENTS.fetch(department, RUBOCOP_DEFAULT)
+      RUBOCOP_RULES.fetch(rule) { RUBOCOP_DEPARTMENTS.fetch(department, RUBOCOP_DEFAULT) }
     end
     private_class_method :rubocop_mapping
 

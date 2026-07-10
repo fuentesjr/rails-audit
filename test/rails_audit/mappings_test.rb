@@ -36,6 +36,21 @@ class MappingsTest < Minitest::Test
     assert_equal "medium", confidence("rubocop", "fatal")
   end
 
+  def test_rubocop_schema_and_migration_cops_override_department_defaults
+    assert_mapping "rubocop", "Rails/UniqueValidationWithoutIndex",
+                   impact: "high", category: "rails"
+    %w[
+      Rails/AddColumnIndex
+      Rails/DangerousColumnNames
+      Rails/MigrationClassName
+      Rails/NotNullColumn
+      Rails/ReversibleMigration
+      Rails/ThreeStateBooleanColumn
+    ].each do |rule|
+      assert_mapping "rubocop", rule, impact: "medium", category: "rails"
+    end
+  end
+
   def test_reek_uses_rule_family_defaults
     assert_mapping "reek", "TooManyStatements", impact: "medium", category: "complexity"
     assert_mapping "reek", "FeatureEnvy", impact: "medium", category: "complexity"

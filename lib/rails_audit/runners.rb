@@ -39,12 +39,13 @@ module RailsAudit
     def rubocop(target:, output_path:, capture: Open3.method(:capture3))
       FileUtils.mkdir_p(File.dirname(output_path))
       FileUtils.rm_f(output_path)
+      env = { "BUNDLE_GEMFILE" => File.join(ROOT, "Gemfile") }
       argv = [
-        "bundle", "exec", "rubocop", target,
+        "bundle", "exec", "rubocop", ".",
         "--config", RUBOCOP_CONFIG,
         "--format", "json", "--out", output_path
       ]
-      _stdout, stderr, status = capture.call(*argv, chdir: ROOT)
+      _stdout, stderr, status = capture.call(env, *argv, chdir: target)
       if !EXIT_CODES.fetch("rubocop").key?(status.exitstatus) &&
          (!File.exist?(output_path) || File.empty?(output_path))
         raise MissingOutputError,

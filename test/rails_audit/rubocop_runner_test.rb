@@ -13,7 +13,8 @@ class RubocopRunnerTest < Minitest::Test
     Dir.mktmpdir do |dir|
       output_path = File.join(dir, "raw", "rubocop.json")
       observed = {}
-      capture = lambda do |*argv, chdir:|
+      capture = lambda do |env, *argv, chdir:|
+        observed[:env] = env
         observed[:argv] = argv
         observed[:chdir] = chdir
         FileUtils.cp(raw_fixture_path, argv.fetch(argv.index("--out") + 1))
@@ -27,11 +28,13 @@ class RubocopRunnerTest < Minitest::Test
       )
 
       assert_equal [
-        "bundle", "exec", "rubocop", "/target/app",
+        "bundle", "exec", "rubocop", ".",
         "--config", RailsAudit::Runners::RUBOCOP_CONFIG,
         "--format", "json", "--out", output_path
       ], observed.fetch(:argv)
-      assert_equal RailsAudit::Runners::ROOT, observed.fetch(:chdir)
+      assert_equal({ "BUNDLE_GEMFILE" => File.join(RailsAudit::Runners::ROOT, "Gemfile") },
+                   observed.fetch(:env))
+      assert_equal "/target/app", observed.fetch(:chdir)
       config = YAML.safe_load_file(RailsAudit::Runners::RUBOCOP_CONFIG)
       all_cops = config.fetch("AllCops")
       assert_equal "disable", all_cops.fetch("NewCops")
@@ -51,7 +54,7 @@ class RubocopRunnerTest < Minitest::Test
   def test_accepts_the_no_offenses_exit_code
     Dir.mktmpdir do |dir|
       output_path = File.join(dir, "rubocop.json")
-      capture = lambda do |*argv, chdir:|
+      capture = lambda do |_env, *argv, chdir:|
         FileUtils.cp(raw_fixture_path, output_path)
         ["", "", Status.new(0)]
       end
@@ -69,7 +72,7 @@ class RubocopRunnerTest < Minitest::Test
   def test_missing_plugin_crash_has_a_distinct_missing_output_failure
     Dir.mktmpdir do |dir|
       output_path = File.join(dir, "rubocop.json")
-      capture = lambda do |*argv, chdir:|
+      capture = lambda do |_env, *argv, chdir:|
         ["", "cannot load such file -- rubocop-example", Status.new(2)]
       end
 
@@ -92,7 +95,7 @@ class RubocopRunnerTest < Minitest::Test
   def test_raises_for_an_unknown_exit_code_when_output_exists
     Dir.mktmpdir do |dir|
       output_path = File.join(dir, "rubocop.json")
-      capture = lambda do |*argv, chdir:|
+      capture = lambda do |_env, *argv, chdir:|
         FileUtils.cp(raw_fixture_path, output_path)
         ["", "rubocop crashed", Status.new(2)]
       end
