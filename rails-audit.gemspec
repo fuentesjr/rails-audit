@@ -3,20 +3,23 @@
 require_relative "lib/rails_audit/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "rails_audit"
+  spec.name = "rails-audit"
   spec.version = RailsAudit::VERSION
   spec.authors = ["Salvador Fuentes Jr."]
   spec.email = ["9240+fuentesjr@users.noreply.github.com"]
 
-  spec.summary = "TODO: Write a short summary, because RubyGems requires one."
-  spec.description = "TODO: Write a longer description or delete this line."
-  spec.homepage = "https://github.com/fuentesjr/rails_audit"
+  spec.summary = "Deterministic Rails audit CLI"
+  spec.description = "Runs a pinned toolchain of static-analysis tools (brakeman, " \
+                     "rubocop + extensions, reek) against a Rails codebase, normalizes " \
+                     "their output into one findings schema, and renders a " \
+                     "severity-ranked report. See docs/DESIGN.md."
+  spec.homepage = "https://github.com/fuentesjr/rails-audit"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
-  spec.metadata["allowed_push_host"] = "TODO: Set to your gem server 'https://example.com'"
+  spec.metadata["allowed_push_host"] = "https://rubygems.org"
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/fuentesjr/rails_audit"
-  spec.metadata["changelog_uri"] = "https://github.com/fuentesjr/rails_audit/blob/main/CHANGELOG.md"
+  spec.metadata["source_code_uri"] = "https://github.com/fuentesjr/rails-audit"
+  spec.metadata["changelog_uri"] = "https://github.com/fuentesjr/rails-audit/blob/main/CHANGELOG.md"
 
   # Uncomment the line below to require MFA for gem pushes.
   # This helps protect your gem from supply chain attacks by ensuring

@@ -1,4 +1,4 @@
-# rails_audit
+# rails-audit
 
 Deterministic Rails audit CLI (working name — see `docs/DESIGN.md` §1).
 
