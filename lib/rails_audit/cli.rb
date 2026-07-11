@@ -145,17 +145,48 @@ module RailsAudit
 
     def run_pipeline(target:, output_dir:, respect_target_config:, max_findings:)
       raw_dir = File.join(output_dir, "raw")
+      FileUtils.mkdir_p(raw_dir)
 
-      brakeman = Runners.brakeman(
-        target: target,
-        output_path: File.join(raw_dir, "brakeman.json"),
-        respect_target_config: respect_target_config
-      )
-      rubocop = Runners.rubocop(target: target, output_path: File.join(raw_dir, "rubocop.json"))
-      reek = Runners.reek(target: target, output_path: File.join(raw_dir, "reek.json"))
-      schema = SchemaAnalyzer.analyze(
-        target: target, output_path: File.join(raw_dir, "schema.json")
-      )
+      brakeman_thread = Thread.new do
+        Thread.current.report_on_exception = false
+        Runners.brakeman(
+          target: target,
+          output_path: File.join(raw_dir, "brakeman.json"),
+          respect_target_config: respect_target_config
+        )
+      end
+      rubocop_thread = Thread.new do
+        Thread.current.report_on_exception = false
+        Runners.rubocop(target: target, output_path: File.join(raw_dir, "rubocop.json"))
+      end
+      reek_thread = Thread.new do
+        Thread.current.report_on_exception = false
+        Runners.reek(target: target, output_path: File.join(raw_dir, "reek.json"))
+      end
+      schema_thread = Thread.new do
+        Thread.current.report_on_exception = false
+        SchemaAnalyzer.analyze(target: target, output_path: File.join(raw_dir, "schema.json"))
+      end
+
+      threads = {
+        brakeman: brakeman_thread, rubocop: rubocop_thread, reek: reek_thread,
+        schema: schema_thread
+      }
+      results = {}
+      error = nil
+      # Join every thread (any error type) before re-raising so a failing runner never orphans
+      # the others; the first error still propagates.
+      threads.each do |name, thread|
+        results[name] = thread.value
+      rescue StandardError => e
+        error ||= e
+      end
+      raise error if error
+
+      brakeman = results.fetch(:brakeman)
+      rubocop = results.fetch(:rubocop)
+      reek = results.fetch(:reek)
+      schema = results.fetch(:schema)
 
       findings = Normalizer.normalize(
         brakeman: brakeman.fetch(:payload),

@@ -84,6 +84,83 @@ class CLITest < Minitest::Test
     end
   end
 
+  def test_audit_fails_without_writing_outputs_when_a_runner_raises
+    Dir.mktmpdir do |output_dir|
+      stdout, stderr = StringIO.new, StringIO.new
+      failing_reek = lambda do |**|
+        raise RailsAudit::Error, "boom"
+      end
+
+      status = RailsAudit::Runners.stub(:reek, failing_reek) do
+        RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
+          ["audit", TARGET_APP, "--output-dir", output_dir]
+        )
+      end
+
+      refute_equal 0, status
+      assert_includes stderr.string, "boom"
+      refute_path_exists File.join(output_dir, "findings.json")
+      refute_path_exists File.join(output_dir, "RAILS_AUDIT_REPORT.md")
+    end
+  end
+
+  def test_audit_runs_the_runners_concurrently
+    mutex = Mutex.new
+    active = 0
+    peak = 0
+    brakeman = lambda do |target:, output_path:, respect_target_config:|
+      _arguments = [target, output_path, respect_target_config]
+      mutex.synchronize { active += 1; peak = [peak, active].max }
+      sleep 0.1
+      mutex.synchronize { active -= 1 }
+      { payload: { "warnings" => [] }, name: "brakeman", version: "8.0.5",
+        raw_count: 0, exit_code: 0 }
+    end
+    rubocop = lambda do |target:, output_path:|
+      _arguments = [target, output_path]
+      mutex.synchronize { active += 1; peak = [peak, active].max }
+      sleep 0.1
+      mutex.synchronize { active -= 1 }
+      { payload: { "files" => [], "summary" => { "offense_count" => 0 } },
+        name: "rubocop", version: "1.88.2", raw_count: 0, exit_code: 0 }
+    end
+    reek = lambda do |target:, output_path:|
+      _arguments = [target, output_path]
+      mutex.synchronize { active += 1; peak = [peak, active].max }
+      sleep 0.1
+      mutex.synchronize { active -= 1 }
+      { payload: [], name: "reek", version: "6.5.0", raw_count: 0, exit_code: 0 }
+    end
+    schema = lambda do |target:, output_path:|
+      _arguments = [target, output_path]
+      mutex.synchronize { active += 1; peak = [peak, active].max }
+      sleep 0.1
+      mutex.synchronize { active -= 1 }
+      { payload: [], name: "schema", version: RailsAudit::VERSION,
+        raw_count: 0, exit_code: 0 }
+    end
+
+    Dir.mktmpdir do |output_dir|
+      stdout, stderr = StringIO.new, StringIO.new
+      status = RailsAudit::Runners.stub(:brakeman, brakeman) do
+        RailsAudit::Runners.stub(:rubocop, rubocop) do
+          RailsAudit::Runners.stub(:reek, reek) do
+            RailsAudit::SchemaAnalyzer.stub(:analyze, schema) do
+              RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
+                ["audit", TARGET_APP, "--output-dir", output_dir]
+              )
+            end
+          end
+        end
+      end
+
+      assert_equal 0, status, "expected success, stderr: #{stderr.string}"
+      assert_operator peak, :>=, 2,
+                      "expected runners to overlap; peak concurrency was #{peak} " \
+                      "(1 means they ran sequentially)"
+    end
+  end
+
   def test_audit_writes_outputs_when_findings_are_under_the_cap
     Dir.mktmpdir do |output_dir|
       stdout, stderr = StringIO.new, StringIO.new
