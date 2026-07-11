@@ -6,18 +6,19 @@ file gets updated. Evidence archive: `../rails-audit-spike` (read-only).
 
 ## Status
 
-Phases 1–5 complete + Phase 7 Exclude slice (2026-07-10). `rails-audit audit <target>` runs
+Phases 1–6 complete + Phase 7 Exclude slice (2026-07-10/11). `rails-audit audit <target>` runs
 the deterministic pipeline (runners → normalizer → impact-first renderer + CLI); a separate,
 off-by-default `rails-audit annotate <findings.json>` adds the LLM layer over a truncation-safe
-digest. Pinned toolchain, config ownership, collision-free compound-key identity, canonical
-sort, static schema cops (with schema-absence surfaced). Suite green (57 runs, 411 assertions).
-CI green; pushed to origin.
+digest. Pinned toolchain, config ownership, collision-free identity, canonical sort, static
+schema cops (schema-absence surfaced), and custom thoughtbot cops (fat model/controller, service
+object). Suite green (59 runs). CI green.
 
-**Paused for owner decisions** before Phase 6+. Remaining: a new cop-development gem (6), the
-rest of Phase 7 (findings.json streaming = product call; runner parallelization = optional),
-and the execution-tier proposal (8: SimpleCov + the reclassified active_record_doctor /
-database_consistency). Delegation model: heavy coding → codex, lighter tasks → Sonnet subagents,
-Fable as advisor on forks (used it for the Phase 5 redirect).
+**Only decision-gated / optional work remains.** Nothing left is a straightforward autonomous
+build: the rest of Phase 7 is a product call (findings.json streaming) + an optional optimization
+(runner parallelization), and Phase 8 is the execution-tier proposal (SimpleCov + the reclassified
+active_record_doctor / database_consistency) needing a sandboxing/security-posture design.
+Delegation model: heavy coding → codex, lighter tasks → Sonnet subagents, Fable as advisor on
+forks (used it for the Phase 5 redirect).
 
 ## Pre-delivery items
 
@@ -63,8 +64,11 @@ Fable as advisor on forks (used it for the Phase 5 redirect).
       (they require booting the target + a live DB; see DESIGN §8/§9). Owner approved the redirect.
       — DONE: commits 395d854 (design amendment), 7ad0502 (cops + runner fix: root-caused &
       fixed the schema-loader/chdir silent no-op), 99d7670 (schema-absence surfaced in report).
-- [ ] **Phase 6 — custom thoughtbot cops extension gem** (fat model/controller,
-      service-object detection — not de-risked by the spike)
+- [x] **Phase 6 — custom thoughtbot cops (in-repo, not a separate gem)** (fat model/controller,
+      service-object detection — not de-risked by the spike) — DONE: commits 7998145 (packaging
+      decision), b3b7f66 (FatModel, FatControllerAction, ServiceObject under
+      RuboCop::Cop::RailsAudit::*, loaded via absolute --require injection in the runner;
+      functional-through-runner tests prove they fire; e2e confirms correct impact/category).
 - [~] **Phase 7 — remaining scale/config follow-ups** (validation spikes themselves are
       done): CLI-owned baseline `Exclude` list — DONE (commit c7a39f8; minimal, `**/`-prefixed,
       false-negative-safe; caught that unprefixed patterns are a silent no-op). REMAINING
