@@ -10,6 +10,7 @@ RUN apt-get update \
     && chown audit:audit /workspace
 
 COPY boot.rb /opt/rails-audit/boot.rb
+COPY active_record_doctor.rb /opt/rails-audit/active_record_doctor.rb
 
 USER audit
 WORKDIR /workspace

@@ -3,6 +3,7 @@
 require_relative "execution/funnel_result"
 require_relative "execution/target_profile"
 require_relative "execution/command"
+require_relative "execution/active_record_doctor_parser"
 require_relative "execution/harness"
 
 module RailsAudit

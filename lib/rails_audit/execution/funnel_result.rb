@@ -28,16 +28,20 @@ module RailsAudit
     end
 
     class FunnelResult
-      attr_reader :stages, :versions, :image_ref
+      attr_reader :stages, :versions, :image_ref, :findings, :tool_runs
 
-      def initialize(stages:, versions:, image_ref:)
+      def initialize(stages:, versions:, image_ref:, findings: [], tool_runs: {})
         names = stages.map(&:name)
         raise ArgumentError, "funnel stages must be #{STAGE_NAMES.inspect}" unless names == STAGE_NAMES
         validate_flow!(stages)
+        failure = stages.any? { |stage| !%i[ok skipped].include?(stage.status) }
+        raise ArgumentError, "failed funnel cannot carry findings" if failure && findings.any?
 
         @stages = stages.freeze
         @versions = versions.freeze
         @image_ref = image_ref
+        @findings = findings.freeze
+        @tool_runs = tool_runs.freeze
         freeze
       end
 
@@ -50,7 +54,9 @@ module RailsAudit
           outcome: outcome.to_s,
           stages: stages.to_h { |stage| [stage.name, stage.to_h] },
           resolved_versions: versions,
-          container_image_ref: image_ref
+          container_image_ref: image_ref,
+          tool_runs: tool_runs,
+          findings: findings.map(&:to_h)
         }
       end
 

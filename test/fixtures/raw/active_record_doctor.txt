@@ -1,0 +1,45 @@
+RAILS_AUDIT_ACTIVE_RECORD_DOCTOR_BEGIN 1
+RAILS_AUDIT_DETECTOR_BEGIN table_without_timestamps
+add a created_at column to accounts
+add a updated_at column to accounts
+add a created_at column to users
+add a updated_at column to users
+add a created_at column to posts
+add a updated_at column to posts
+RAILS_AUDIT_DETECTOR_END table_without_timestamps findings
+RAILS_AUDIT_DETECTOR_BEGIN table_without_primary_key
+RAILS_AUDIT_DETECTOR_END table_without_primary_key clean
+RAILS_AUDIT_DETECTOR_BEGIN mismatched_foreign_key_type
+RAILS_AUDIT_DETECTOR_END mismatched_foreign_key_type clean
+RAILS_AUDIT_DETECTOR_BEGIN short_primary_key_type
+RAILS_AUDIT_DETECTOR_END short_primary_key_type clean
+RAILS_AUDIT_DETECTOR_BEGIN incorrect_dependent_option
+use `dependent: :delete_all` or similar on User.posts - associated model Post has no callbacks and can be deleted in bulk
+RAILS_AUDIT_DETECTOR_END incorrect_dependent_option findings
+RAILS_AUDIT_DETECTOR_BEGIN unindexed_foreign_keys
+add an index on users(account_id) - foreign keys are often used in database lookups and should be indexed for performance reasons
+RAILS_AUDIT_DETECTOR_END unindexed_foreign_keys findings
+RAILS_AUDIT_DETECTOR_BEGIN missing_non_null_constraint
+RAILS_AUDIT_DETECTOR_END missing_non_null_constraint clean
+RAILS_AUDIT_DETECTOR_BEGIN undefined_table_references
+RAILS_AUDIT_DETECTOR_END undefined_table_references clean
+RAILS_AUDIT_DETECTOR_BEGIN unindexed_deleted_at
+RAILS_AUDIT_DETECTOR_END unindexed_deleted_at clean
+RAILS_AUDIT_DETECTOR_BEGIN extraneous_indexes
+RAILS_AUDIT_DETECTOR_END extraneous_indexes clean
+RAILS_AUDIT_DETECTOR_BEGIN incorrect_length_validation
+RAILS_AUDIT_DETECTOR_END incorrect_length_validation clean
+RAILS_AUDIT_DETECTOR_BEGIN incorrect_boolean_presence_validation
+RAILS_AUDIT_DETECTOR_END incorrect_boolean_presence_validation clean
+RAILS_AUDIT_DETECTOR_BEGIN missing_unique_indexes
+add a unique index on users(email) - validating uniqueness in User without an index can lead to duplicates
+RAILS_AUDIT_DETECTOR_END missing_unique_indexes findings
+RAILS_AUDIT_DETECTOR_BEGIN missing_foreign_keys
+create a foreign key on posts.user_id - looks like an association without a foreign key constraint
+create a foreign key on users.account_id - looks like an association without a foreign key constraint
+RAILS_AUDIT_DETECTOR_END missing_foreign_keys findings
+RAILS_AUDIT_DETECTOR_BEGIN missing_presence_validation
+add a `presence` validator to Account.name - it's NOT NULL but lacks a validator
+add a `presence` validator to Post.title - it's NOT NULL but lacks a validator
+RAILS_AUDIT_DETECTOR_END missing_presence_validation findings
+RAILS_AUDIT_ACTIVE_RECORD_DOCTOR_END

@@ -88,6 +88,20 @@ class MappingsTest < Minitest::Test
     assert_equal "medium", confidence("schema", "medium")
   end
 
+  def test_active_record_doctor_seeded_rules_match_static_schema_vocabulary
+    assert_mapping "active_record_doctor", "unindexed_foreign_keys",
+                   impact: "medium", category: "performance"
+    assert_equal "medium", RailsAudit::Mappings.confidence(
+      tool: "active_record_doctor", rule: "unindexed_foreign_keys"
+    )
+
+    assert_mapping "active_record_doctor", "missing_unique_indexes",
+                   impact: "high", category: "rails"
+    assert_equal "medium", RailsAudit::Mappings.confidence(
+      tool: "active_record_doctor", rule: "missing_unique_indexes"
+    )
+  end
+
   private
 
   def impact(tool, rule)

@@ -85,6 +85,23 @@ module RailsAudit
       "Schema/ExtraneousIndex" => { impact: "low", category: "performance" }.freeze,
       "Schema/ShortPrimaryKeyType" => { impact: "medium", category: "rails" }.freeze
     }.freeze
+    ACTIVE_RECORD_DOCTOR_RULES = {
+      "missing_presence_validation" => { impact: "medium", category: "rails", confidence: "medium" }.freeze,
+      "missing_foreign_keys" => { impact: "high", category: "rails", confidence: "high" }.freeze,
+      "missing_unique_indexes" => { impact: "high", category: "rails", confidence: "medium" }.freeze,
+      "incorrect_boolean_presence_validation" => { impact: "medium", category: "correctness", confidence: "high" }.freeze,
+      "incorrect_length_validation" => { impact: "medium", category: "correctness", confidence: "high" }.freeze,
+      "extraneous_indexes" => { impact: "low", category: "performance", confidence: "high" }.freeze,
+      "unindexed_deleted_at" => { impact: "medium", category: "performance", confidence: "medium" }.freeze,
+      "undefined_table_references" => { impact: "high", category: "correctness", confidence: "high" }.freeze,
+      "missing_non_null_constraint" => { impact: "high", category: "rails", confidence: "high" }.freeze,
+      "unindexed_foreign_keys" => { impact: "medium", category: "performance", confidence: "medium" }.freeze,
+      "incorrect_dependent_option" => { impact: "medium", category: "rails", confidence: "medium" }.freeze,
+      "short_primary_key_type" => { impact: "medium", category: "rails", confidence: "high" }.freeze,
+      "mismatched_foreign_key_type" => { impact: "high", category: "rails", confidence: "high" }.freeze,
+      "table_without_primary_key" => { impact: "high", category: "rails", confidence: "high" }.freeze,
+      "table_without_timestamps" => { impact: "low", category: "rails", confidence: "high" }.freeze
+    }.freeze
 
     module_function
 
@@ -94,13 +111,17 @@ module RailsAudit
       when "rubocop" then rubocop_mapping(rule).fetch(:impact)
       when "reek" then reek_mapping(rule).fetch(:impact)
       when "schema" then SCHEMA_RULES.fetch(rule).fetch(:impact)
+      when "active_record_doctor" then ACTIVE_RECORD_DOCTOR_RULES.fetch(rule).fetch(:impact)
       else "low"
       end
     end
 
-    def confidence(tool:, raw_confidence: nil)
+    def confidence(tool:, rule: nil, raw_confidence: nil)
       return BRAKEMAN_CONFIDENCE.fetch(raw_confidence, "medium") if tool == "brakeman"
       return raw_confidence if tool == "schema"
+      if tool == "active_record_doctor"
+        return ACTIVE_RECORD_DOCTOR_RULES.fetch(rule).fetch(:confidence)
+      end
 
       "medium"
     end
@@ -111,6 +132,7 @@ module RailsAudit
       when "rubocop" then rubocop_mapping(rule).fetch(:category)
       when "reek" then reek_mapping(rule).fetch(:category)
       when "schema" then SCHEMA_RULES.fetch(rule).fetch(:category)
+      when "active_record_doctor" then ACTIVE_RECORD_DOCTOR_RULES.fetch(rule).fetch(:category)
       else "style"
       end
     end

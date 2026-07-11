@@ -14,12 +14,14 @@ module RailsAudit
         bundle_install: 600,
         schema_load: 180,
         boot: 120,
+        active_record_doctor: 180,
         overall: 900
       }.freeze
       POSTGRES_IMAGE = "postgres:16-alpine"
       REDIS_IMAGE = "redis:7-alpine"
       APP_PATH = "/workspace/app"
       BOOT_RUNNER = "/opt/rails-audit/boot.rb"
+      ACTIVE_RECORD_DOCTOR_RUNNER = "/opt/rails-audit/active_record_doctor.rb"
 
       def initialize(command: Command.new, timeouts: {}, rails_env: "audit")
         @command = command
@@ -55,7 +57,9 @@ module RailsAudit
           load_schema
         end
 
-        run_stage(:boot, :boot_failed) { boot_application }
+        return finish unless run_stage(:boot, :boot_failed) { boot_application }
+
+        run_active_record_doctor
         finish
       rescue SourceProfileError => e
         record(:clone_or_copy, :clone_failed, elapsed_since_start, e.message)
@@ -63,7 +67,11 @@ module RailsAudit
         finish
       rescue DockerUnavailableError
         raise
+      rescue UnexpectedActiveRecordDoctorOutputError
+        raise
       rescue RailsAudit::Error => e
+        raise if @stages.last&.name == :boot && @stages.last.status == :ok
+
         record(:clone_or_copy, :clone_failed, elapsed_since_start, e.message)
         skip_remaining(:clone_or_copy)
         finish
@@ -88,6 +96,8 @@ module RailsAudit
         @stages = []
         @versions = { ruby: nil, rails: nil, adapter: nil }
         @image_ref = nil
+        @findings = []
+        @tool_runs = {}
       end
 
       def check_docker!
@@ -201,7 +211,8 @@ module RailsAudit
 
         version_result = app_exec(
           "bundle", "exec", "ruby", "-e",
-          'puts RUBY_VERSION; puts Gem.loaded_specs.fetch("rails").version',
+          'puts RUBY_VERSION; puts Gem.loaded_specs.fetch("rails").version; ' \
+          'puts Gem.loaded_specs.fetch("active_record_doctor").version',
           stage: :bundle_install,
           env: { "BUNDLE_PATH" => "/workspace/vendor/bundle" }
         )
@@ -212,11 +223,12 @@ module RailsAudit
       end
 
       def update_versions(output)
-        ruby, rails = output.lines.map(&:strip).reject(&:empty?).last(2)
-        return false unless ruby && rails
+        ruby, rails, active_record_doctor = output.lines.map(&:strip).reject(&:empty?).last(3)
+        return false unless ruby && rails && active_record_doctor
 
         @versions[:ruby] = ruby
         @versions[:rails] = rails
+        @versions[:active_record_doctor] = active_record_doctor
         true
       end
 
@@ -281,6 +293,21 @@ module RailsAudit
         app_exec("bundle", "exec", "ruby", BOOT_RUNNER, stage: :boot, env: target_env)
       end
 
+      def run_active_record_doctor
+        result = app_exec(
+          "bundle", "exec", "ruby", ACTIVE_RECORD_DOCTOR_RUNNER,
+          stage: :active_record_doctor, env: target_env
+        )
+        @findings = ActiveRecordDoctorParser.new.parse(
+          result.stdout, diagnostic_output: result.output
+        )
+        @tool_runs[:active_record_doctor] = {
+          version: @versions.fetch(:active_record_doctor),
+          exit_code: result.exit_code,
+          timed_out: result.timed_out
+        }.freeze
+      end
+
       def target_file?(relative_path)
         result = app_exec("test", "-f", File.join(APP_PATH, relative_path), stage: :schema_load)
         return true if result.success?
@@ -337,7 +364,10 @@ module RailsAudit
       def finish
         missing = STAGE_NAMES.drop(@stages.length)
         missing.each { |name| record(name, :skipped, 0.0, "funnel stopped") }
-        FunnelResult.new(stages: @stages, versions: @versions, image_ref: @image_ref)
+        FunnelResult.new(
+          stages: @stages, versions: @versions, image_ref: @image_ref,
+          findings: @findings, tool_runs: @tool_runs
+        )
       end
 
       def docker!(*argv)
