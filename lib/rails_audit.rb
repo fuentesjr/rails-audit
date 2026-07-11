@@ -13,4 +13,6 @@ module RailsAudit
 end
 
 require_relative "rails_audit/runners"
+require_relative "rails_audit/schema_model"
+require_relative "rails_audit/schema_analyzer"
 require_relative "rails_audit/cli"

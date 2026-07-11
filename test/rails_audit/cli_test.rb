@@ -54,7 +54,7 @@ class CLITest < Minitest::Test
       refute_empty findings
 
       files = findings.map { |finding| finding.dig("location", "file") }
-      refute_empty files.select { |file| !file.start_with?("/") }
+      refute_empty(files.select { |file| !file.start_with?("/") })
       assert_includes files, "app/controllers/users_controller.rb"
       assert files.none? { |file| file.start_with?("/") },
              "expected all finding paths to be target-root-relative, got: #{files.uniq}"
@@ -76,6 +76,7 @@ class CLITest < Minitest::Test
 
       document = JSON.parse(File.read(File.join(output_dir, "findings.json")))
       assert_equal [SCHEMA_MISSING_WARNING], document.fetch("warnings")
+      assert_includes SCHEMA_MISSING_WARNING, "Schema/*"
 
       report = File.read(File.join(output_dir, "RAILS_AUDIT_REPORT.md"))
       assert_includes report, "## Warnings\n- #{SCHEMA_MISSING_WARNING}"
@@ -85,14 +86,27 @@ class CLITest < Minitest::Test
   def test_audit_against_a_target_with_schema_rb_has_no_warning
     Dir.mktmpdir do |output_dir|
       stdout, stderr = StringIO.new, StringIO.new
-      status = RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
-        ["audit", SCHEMA_APP, "--output-dir", output_dir]
-      )
+      status = with_environment("XDG_CACHE_HOME" => File.join(output_dir, "cache")) do
+        RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
+          ["audit", SCHEMA_APP, "--output-dir", output_dir]
+        )
+      end
 
       assert_equal 0, status, "expected success, stderr: #{stderr.string}"
 
       document = JSON.parse(File.read(File.join(output_dir, "findings.json")))
       assert_empty document.fetch("warnings")
+      schema_tool = document.fetch("tools").find { |tool| tool.fetch("name") == "schema" }
+      schema_findings = document.fetch("findings").select do |finding|
+        finding.fetch("tool") == "schema"
+      end
+
+      refute_nil schema_tool
+      assert_equal RailsAudit::VERSION, schema_tool.fetch("version")
+      assert_equal schema_findings.size, schema_tool.fetch("raw_count")
+      assert_equal RailsAudit::Mappings::SCHEMA_RULES.keys.sort,
+                   schema_findings.map { |finding| finding.fetch("rule") }.uniq.sort
+      assert_equal schema_findings.size, schema_findings.map { |finding| finding.fetch("id") }.uniq.size
 
       report = File.read(File.join(output_dir, "RAILS_AUDIT_REPORT.md"))
       refute_includes report, "## Warnings"
@@ -112,5 +126,15 @@ class CLITest < Minitest::Test
       assert_includes stderr.string, "rails-audit annotate FINDINGS_JSON"
       assert_empty stdout.string
     end
+  end
+
+  private
+
+  def with_environment(values)
+    original = values.to_h { |key, _value| [key, ENV.fetch(key, nil)] }
+    values.each { |key, value| ENV[key] = value }
+    yield
+  ensure
+    original.each { |key, value| ENV[key] = value }
   end
 end

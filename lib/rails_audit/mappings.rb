@@ -5,7 +5,8 @@ module RailsAudit
     TOOL_VERSIONS = {
       brakeman: "8.0.5",
       rubocop: "1.88.2",
-      reek: "6.5.0"
+      reek: "6.5.0",
+      schema: RailsAudit::VERSION
     }.freeze
 
     BRAKEMAN_IMPACT = {
@@ -77,6 +78,13 @@ module RailsAudit
       design: { impact: "low", category: "design" }.freeze,
       naming: { impact: "info", category: "style" }.freeze
     }.freeze
+    SCHEMA_RULES = {
+      "Schema/TableWithoutPrimaryKey" => { impact: "high", category: "rails" }.freeze,
+      "Schema/MismatchedForeignKeyType" => { impact: "high", category: "rails" }.freeze,
+      "Schema/UnindexedForeignKey" => { impact: "medium", category: "performance" }.freeze,
+      "Schema/ExtraneousIndex" => { impact: "low", category: "performance" }.freeze,
+      "Schema/ShortPrimaryKeyType" => { impact: "medium", category: "rails" }.freeze
+    }.freeze
 
     module_function
 
@@ -85,12 +93,14 @@ module RailsAudit
       when "brakeman" then BRAKEMAN_IMPACT.fetch(rule, "high")
       when "rubocop" then rubocop_mapping(rule).fetch(:impact)
       when "reek" then reek_mapping(rule).fetch(:impact)
+      when "schema" then SCHEMA_RULES.fetch(rule).fetch(:impact)
       else "low"
       end
     end
 
     def confidence(tool:, raw_confidence: nil)
       return BRAKEMAN_CONFIDENCE.fetch(raw_confidence, "medium") if tool == "brakeman"
+      return raw_confidence if tool == "schema"
 
       "medium"
     end
@@ -100,6 +110,7 @@ module RailsAudit
       when "brakeman" then "security"
       when "rubocop" then rubocop_mapping(rule).fetch(:category)
       when "reek" then reek_mapping(rule).fetch(:category)
+      when "schema" then SCHEMA_RULES.fetch(rule).fetch(:category)
       else "style"
       end
     end

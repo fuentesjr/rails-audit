@@ -100,6 +100,7 @@ class DigestBuilderTest < Minitest::Test
         brakeman: raw_fixture("brakeman.json"),
         rubocop: raw_fixture("rubocop.json"),
         reek: raw_fixture("reek.json"),
+        schema: [],
         target_root: TARGET_ROOT
       )
     )

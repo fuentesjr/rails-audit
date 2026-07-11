@@ -5,7 +5,8 @@ require "test_helper"
 class MappingsTest < Minitest::Test
   def test_tables_are_scoped_to_the_pinned_tool_versions
     assert_equal(
-      { brakeman: "8.0.5", rubocop: "1.88.2", reek: "6.5.0" },
+      { brakeman: "8.0.5", rubocop: "1.88.2", reek: "6.5.0",
+        schema: RailsAudit::VERSION },
       RailsAudit::Mappings::TOOL_VERSIONS
     )
   end
@@ -70,6 +71,21 @@ class MappingsTest < Minitest::Test
     assert_mapping "reek", "UncommunicativeVariableName", impact: "info", category: "style"
     assert_mapping "reek", "UnknownSmell", impact: "low", category: "design"
     assert_equal "medium", confidence("reek", nil)
+  end
+
+  def test_schema_rules_have_explicit_mappings_and_passthrough_confidence
+    assert_mapping "schema", "Schema/TableWithoutPrimaryKey",
+                   impact: "high", category: "rails"
+    assert_mapping "schema", "Schema/MismatchedForeignKeyType",
+                   impact: "high", category: "rails"
+    assert_mapping "schema", "Schema/UnindexedForeignKey",
+                   impact: "medium", category: "performance"
+    assert_mapping "schema", "Schema/ExtraneousIndex",
+                   impact: "low", category: "performance"
+    assert_mapping "schema", "Schema/ShortPrimaryKeyType",
+                   impact: "medium", category: "rails"
+    assert_equal "high", confidence("schema", "high")
+    assert_equal "medium", confidence("schema", "medium")
   end
 
   private

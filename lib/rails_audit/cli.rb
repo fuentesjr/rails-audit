@@ -13,7 +13,8 @@ module RailsAudit
     # surface, so we call it out explicitly instead of letting "no findings" read as "schema is fine".
     SCHEMA_MISSING_WARNING =
       "db/schema.rb not found — schema-dependent cops (e.g. Rails/UniqueValidationWithoutIndex, " \
-      "Rails/ThreeStateBooleanColumn) were inactive; migration cops on db/migrate are unaffected."
+      "Rails/ThreeStateBooleanColumn) and Schema/* checks were inactive; migration cops on " \
+      "db/migrate are unaffected."
 
     USAGE = <<~USAGE
       Usage: rails-audit audit TARGET [options]
@@ -103,18 +104,24 @@ module RailsAudit
       )
       rubocop = Runners.rubocop(target: target, output_path: File.join(raw_dir, "rubocop.json"))
       reek = Runners.reek(target: target, output_path: File.join(raw_dir, "reek.json"))
+      schema = SchemaAnalyzer.analyze(
+        target: target, output_path: File.join(raw_dir, "schema.json")
+      )
 
       findings = Normalizer.normalize(
         brakeman: brakeman.fetch(:payload),
         rubocop: rubocop.fetch(:payload),
         reek: reek.fetch(:payload),
+        schema: schema.fetch(:payload),
         target_root: target
       )
 
       document = Normalizer.document(
         target: target,
         toolchain: { ruby: RUBY_VERSION, bundler: Bundler::VERSION },
-        tools: [brakeman, rubocop, reek].map { |tool| tool.slice(:name, :version, :raw_count, :exit_code) },
+        tools: [brakeman, rubocop, reek, schema].map do |tool|
+          tool.slice(:name, :version, :raw_count, :exit_code)
+        end,
         findings: findings,
         warnings: warnings_for(target)
       )
