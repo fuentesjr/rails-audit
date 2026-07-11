@@ -10,6 +10,7 @@ module RailsAudit
     ROOT = File.expand_path("../..", __dir__)
     GEMFILE_LOCK = File.join(ROOT, "Gemfile.lock")
     RUBOCOP_CONFIG = File.join(ROOT, "config", "rails_audit", "rubocop.yml")
+    RUBOCOP_COPS = File.join(ROOT, "lib", "rails_audit", "cops.rb")
     EMPTY_BRAKEMAN_IGNORE = '{"ignored_warnings":[],"updated":null}'
     EXIT_CODES = {
       "brakeman" => { 0 => "no warnings", 3 => "warnings found" },
@@ -42,6 +43,7 @@ module RailsAudit
       env = { "BUNDLE_GEMFILE" => File.join(ROOT, "Gemfile") }
       argv = [
         "bundle", "exec", "rubocop", ".",
+        "--require", RUBOCOP_COPS,
         "--config", RUBOCOP_CONFIG,
         "--format", "json", "--out", output_path
       ]

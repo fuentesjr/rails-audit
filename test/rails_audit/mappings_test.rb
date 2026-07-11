@@ -51,6 +51,15 @@ class MappingsTest < Minitest::Test
     end
   end
 
+  def test_custom_cops_override_department_default
+    assert_mapping "rubocop", "RailsAudit/FatModel",
+                   impact: "medium", category: "complexity"
+    assert_mapping "rubocop", "RailsAudit/FatControllerAction",
+                   impact: "medium", category: "complexity"
+    assert_mapping "rubocop", "RailsAudit/ServiceObject",
+                   impact: "low", category: "design"
+  end
+
   def test_reek_uses_rule_family_defaults
     assert_mapping "reek", "TooManyStatements", impact: "medium", category: "complexity"
     assert_mapping "reek", "FeatureEnvy", impact: "medium", category: "complexity"

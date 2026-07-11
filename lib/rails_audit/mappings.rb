@@ -46,7 +46,10 @@ module RailsAudit
       "Rails/MigrationClassName" => { impact: "medium", category: "rails" }.freeze,
       "Rails/NotNullColumn" => { impact: "medium", category: "rails" }.freeze,
       "Rails/ReversibleMigration" => { impact: "medium", category: "rails" }.freeze,
-      "Rails/ThreeStateBooleanColumn" => { impact: "medium", category: "rails" }.freeze
+      "Rails/ThreeStateBooleanColumn" => { impact: "medium", category: "rails" }.freeze,
+      "RailsAudit/FatModel" => { impact: "medium", category: "complexity" }.freeze,
+      "RailsAudit/FatControllerAction" => { impact: "medium", category: "complexity" }.freeze,
+      "RailsAudit/ServiceObject" => { impact: "low", category: "design" }.freeze
     }.freeze
 
     REEK_COMPLEXITY_RULES = %w[

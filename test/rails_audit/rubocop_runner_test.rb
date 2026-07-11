@@ -29,6 +29,7 @@ class RubocopRunnerTest < Minitest::Test
 
       assert_equal [
         "bundle", "exec", "rubocop", ".",
+        "--require", RailsAudit::Runners::RUBOCOP_COPS,
         "--config", RailsAudit::Runners::RUBOCOP_CONFIG,
         "--format", "json", "--out", output_path
       ], observed.fetch(:argv)
@@ -54,7 +55,7 @@ class RubocopRunnerTest < Minitest::Test
   def test_accepts_the_no_offenses_exit_code
     Dir.mktmpdir do |dir|
       output_path = File.join(dir, "rubocop.json")
-      capture = lambda do |_env, *argv, chdir:|
+      capture = lambda do |_env, *_argv, **_kwargs|
         FileUtils.cp(raw_fixture_path, output_path)
         ["", "", Status.new(0)]
       end
@@ -72,7 +73,7 @@ class RubocopRunnerTest < Minitest::Test
   def test_missing_plugin_crash_has_a_distinct_missing_output_failure
     Dir.mktmpdir do |dir|
       output_path = File.join(dir, "rubocop.json")
-      capture = lambda do |_env, *argv, chdir:|
+      capture = lambda do |_env, *_argv, **_kwargs|
         ["", "cannot load such file -- rubocop-example", Status.new(2)]
       end
 
@@ -95,7 +96,7 @@ class RubocopRunnerTest < Minitest::Test
   def test_raises_for_an_unknown_exit_code_when_output_exists
     Dir.mktmpdir do |dir|
       output_path = File.join(dir, "rubocop.json")
-      capture = lambda do |_env, *argv, chdir:|
+      capture = lambda do |_env, *_argv, **_kwargs|
         FileUtils.cp(raw_fixture_path, output_path)
         ["", "rubocop crashed", Status.new(2)]
       end

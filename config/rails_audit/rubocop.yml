@@ -38,3 +38,15 @@ Rails/MigrationClassName:
 
 Rails/ThreeStateBooleanColumn:
   Enabled: true
+
+RailsAudit/FatModel:
+  Enabled: true
+  MaxLines: 200
+  MaxPublicMethods: 15
+
+RailsAudit/FatControllerAction:
+  Enabled: true
+  MaxLines: 15
+
+RailsAudit/ServiceObject:
+  Enabled: true
