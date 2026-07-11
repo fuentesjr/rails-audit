@@ -40,12 +40,23 @@ reach the colima socket, so its live-test result is unreliable), and commit per 
   `UnexpectedActiveRecordDoctorOutputError`, never silent `[]`); findings reuse §5 Finding via
   Mappings. Live test detects both seeded issues (users.account_id, users.email). Suite 95/622,
   0 skips (verified by orchestrator).
-- **M4 — `execution-findings.json` + `execution-audit` command** 🔄 NEXT (codex): separate
-  artifact (§3.6), `--i-understand-untrusted-code-runs` gate (§3.8), report section.
-- **M5 — real-app funnel measurement** ⏳ **OWNER-GATED**: runs the harness against a sample of
-  REAL repos to measure §8.3 full-funnel success rate. STOP and get owner approval on the
-  curated target sample before running (executes untrusted real code). Fable flagged M2 fixes
-  #1/#2 as blocking specifically at this batch scale — both now fixed.
+- **M4 — `execution-findings.json` + `execution-audit` command** ✅ committed `efb88ef`.
+  Separate `execution-audit <target>` command (mirrors annotate); hard
+  `--i-understand-untrusted-code-runs` gate (§3.8); separate `execution-findings.json` artifact
+  with tier envelope (`pinned_by_us:false`/`warranted_reproducible:false`/versions/image digest/
+  adapter/per-stage+per-tool status), atomic write, reserved-filename guard (never clobbers
+  static output); status-first "Execution tier (not warranted reproducible)" report section.
+  codex's own self-review caught+fixed 6 issues pre-commit (path clobber; failed-run-exit-0;
+  timed-out-but-clean-looking classified `clean`; unvalidated tool-run hash → `ToolRun` value
+  object w/ single-source outcome; weak report test). Orchestrator verified live e2e: gate
+  refuses without ack, artifact carries envelope + both seeded findings, findings.json untouched.
+  Suite 107/730, 0 skips. **This completes the BUILDABLE portion of 8a.**
+- **M5 — real-app funnel measurement** ⏳ **OWNER-GATED — STOPPED HERE FOR OWNER DECISION**:
+  point the harness at a curated sample of REAL repos to measure §8.3 full-funnel success rate
+  (clone→bundle install→schema load→boot) + operational cost → the go/no-go data for 8b/8c.
+  Executes untrusted real code, so needs owner approval on the target sample + off-ramp criteria
+  before running. Fable's M2 fixes #1/#2 (probe leak, bad-Ruby-pin crash) were flagged blocking
+  precisely at this batch scale — both fixed.
 
 Local-only, not in git (gitignored): `docs/notes/phase8-zero-notes.md`, `docs/notes/phase8a-notes.md`
 (8a architecture, install-egress deferral, accepted limitations, verification status).
