@@ -15,15 +15,27 @@ app unconditionally; unresolvable dynamic Ruby versions; a broken git-URL ingest
 static pipeline + Phase 8-zero is the shipped product. The 8a harness stays committed as an
 experimental artifact, not wired into CI (live test gated behind `RAILS_AUDIT_LIVE`).
 
-**Everything through the 8a decision is committed AND pushed — `origin/main` @ `1f0a798`, 0
-unpushed, working tree clean.** Nothing is mid-flight.
+**The two remaining Phase 7 code items are now DONE and committed (2026-07-11 session) but
+NOT yet pushed** — local `main` is 2 commits ahead of `origin/main`: `4cbf561` (findings
+cap) and `4f045cb` (runner parallelization). Everything before that is committed AND pushed.
+Working tree clean, nothing mid-flight. **Push is owner-gated — ask before pushing.**
 
-**Next actions when resuming (all decision-gated — need owner input, nothing is "just build"):**
-1. **Phase 7 — `findings.json` streaming / in-memory upper-bound** — a product call (DESIGN §9):
-   decide the max in-memory findings size / whether to stream. Blocks nothing today.
-2. **Phase 7 — optional runner parallelization** — modest perf win, adds a concurrency surface;
-   only if perf matters.
-3. **Pre-delivery — final gem name** — `rails-audit` is still a placeholder; cheap to rename
+Phase 7 is now effectively complete (Exclude slice + both code items done). The two items
+resolved this session, per owner decisions:
+- **`findings.json` in-memory upper-bound** — RESOLVED: configurable `--max-findings`
+  (default 500,000, comfortably above Discourse's real ~430k), HARD-FAIL when exceeded but
+  overridable via the flag. Findings are never silently dropped/truncated; the cap is
+  enforced after normalize but before any output write (no partial outputs on failure).
+  Streaming stays deferred. DESIGN §9 open question closed. (`4cbf561`)
+- **Runner parallelization** — DONE: the four static runners run concurrently in threads
+  (the three subprocess runners release the GIL during Open3 I/O → real wall-clock win);
+  findings are canonically re-sorted downstream so completion order can't affect output.
+  Fail-loud preserved + hardened: all four threads are joined (any error type) before the
+  first error re-raises, so a failing runner never orphans the others. A peak-concurrency
+  probe pins the overlap so a silent revert to sequential can't pass. (`4f045cb`)
+
+**Only remaining decision-gated item:**
+1. **Pre-delivery — final gem name** — `rails-audit` is still a placeholder; cheap to rename
    only until a RubyGems name exists.
 There is no remaining Phase 8 work: the tier is deferred (see below). If the tier is ever
 revived, `docs/execution-tier-8a-findings.md` has the prerequisite fix-list.
@@ -159,11 +171,13 @@ forks (used it to review the M2 harness — verdict sound, 5 findings fixed pre-
       decision), b3b7f66 (FatModel, FatControllerAction, ServiceObject under
       RuboCop::Cop::RailsAudit::*, loaded via absolute --require injection in the runner;
       functional-through-runner tests prove they fire; e2e confirms correct impact/category).
-- [~] **Phase 7 — remaining scale/config follow-ups** (validation spikes themselves are
-      done): CLI-owned baseline `Exclude` list — DONE (commit c7a39f8; minimal, `**/`-prefixed,
-      false-negative-safe; caught that unprefixed patterns are a silent no-op). REMAINING
-      (need owner input): in-memory `findings.json` upper-bound / streaming decision (product
-      call, §9); optional runner parallelization (modest perf win, adds concurrency surface).
+- [x] **Phase 7 — remaining scale/config follow-ups** — COMPLETE. CLI-owned baseline `Exclude`
+      list — DONE (commit c7a39f8; minimal, `**/`-prefixed, false-negative-safe; caught that
+      unprefixed patterns are a silent no-op). In-memory `findings.json` upper-bound — DONE
+      (commit 4cbf561; configurable `--max-findings`, default 500k, hard-fail-overridable, never
+      drops findings, enforced pre-write, streaming deferred; DESIGN §9 closed). Runner
+      parallelization — DONE (commit 4f045cb; four runners in threads, all joined before first
+      error re-raises so none orphan, peak-concurrency test pins the overlap).
 - [x] **Phase 8 — execution-tier tools as their own proposal** — CLOSED: 8a spike ran, tier
       DEFERRED (NO-GO on 8b/8c, owner-approved 2026-07-11). M1–M4 built the sandbox harness +
       `execution-audit` command; M5 measured **0/6 full-funnel success on real apps** (structural
@@ -220,6 +234,18 @@ upper-bound / streaming is a Phase-7 product call (below).
 
 ## Log
 
+- 2026-07-11 — Closed the two remaining Phase 7 code items (owner picked both). (1) Findings
+  cap: configurable `--max-findings` (default 500k, hard-fail-overridable, findings never
+  dropped, enforced pre-write) — owner-refined from "fixed cap" to "configurable with a sane
+  default," which dissolved the drop-vs-block tension (`4cbf561`; DESIGN §9 closed). (2) Runner
+  parallelization: four runners in threads, all joined before the first error re-raises (no
+  orphaned threads), peak-concurrency probe pins the overlap (`4f045cb`). All coding via
+  codex-dispatch per the current delegation model; each milestone verified with a full
+  independent `bundle exec rake` (114/756, 0 failures, 1 expected `RAILS_AUDIT_LIVE` skip) before
+  commit. The parallelization took several codex round-trips: threading → concurrency-pinning
+  test → join-all-before-raise → broaden the join rescue to `StandardError` (each surfaced by
+  codex's own review; the last two closed a real orphan-thread gap the naive `Thread#value` loop
+  left open). Both commits are LOCAL — push owner-gated. Only remaining item: final gem name.
 - 2026-07-09 — Discovery spike completed (`../rails-audit-spike`): pipeline + LLM
   annotation slice against Lobsters; DESIGN.md drafted and adversarially reviewed.
 - 2026-07-10 — Micro-spikes A (rubocop config landmine, Mastodon) and B (scale,
