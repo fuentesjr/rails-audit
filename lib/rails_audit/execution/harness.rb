@@ -120,16 +120,7 @@ module RailsAudit
       end
 
       def probe_git_source(source)
-        script = <<~SH
-          set -eu
-          git clone --depth 1 -- "$TARGET_URL" /tmp/repo >&2
-          printf 'RAILS_AUDIT_RUBY\n'
-          test ! -f /tmp/repo/.ruby-version || cat /tmp/repo/.ruby-version
-          printf '\nRAILS_AUDIT_GEMFILE\n'
-          cat /tmp/repo/Gemfile
-          printf '\nRAILS_AUDIT_DATABASE\n'
-          test ! -d /tmp/repo/config || find /tmp/repo/config -type f -exec cat {} \;
-        SH
+        script = git_source_probe_script
         @created_containers << @names.fetch(:probe)
         result = capture(
           "docker", "run", "--rm", "--name", @names.fetch(:probe), "--network", "bridge",
@@ -150,6 +141,19 @@ module RailsAudit
         )
       rescue RailsAudit::Error => e
         raise SourceProfileError, e.message
+      end
+
+      def git_source_probe_script
+        <<~'SH'
+          set -eu
+          git clone --depth 1 -- "$TARGET_URL" /tmp/repo >&2
+          printf 'RAILS_AUDIT_RUBY\n'
+          test ! -f /tmp/repo/.ruby-version || cat /tmp/repo/.ruby-version
+          printf '\nRAILS_AUDIT_GEMFILE\n'
+          cat /tmp/repo/Gemfile
+          printf '\nRAILS_AUDIT_DATABASE\n'
+          test ! -d /tmp/repo/config || find /tmp/repo/config -type f -exec cat {} \;
+        SH
       end
 
       def build_image!(ruby_version)

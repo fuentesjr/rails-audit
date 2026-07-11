@@ -173,6 +173,15 @@ class ExecutionHarnessTest < Minitest::Test
     end)
   end
 
+  def test_git_source_probe_script_preserves_shell_escapes_and_markers
+    script = RailsAudit::Execution::Harness.new.send(:git_source_probe_script)
+
+    assert_includes script, "find /tmp/repo/config -type f -exec cat {} \\;"
+    assert_includes script, "printf 'RAILS_AUDIT_RUBY\\n'"
+    assert_includes script, "printf '\\nRAILS_AUDIT_GEMFILE\\n'"
+    assert_includes script, "printf '\\nRAILS_AUDIT_DATABASE\\n'"
+  end
+
   def test_analysis_argv_contains_only_the_tier_owned_read_only_runner
     command = FakeDocker.new
     with_target('gem "pg"') do |target|
