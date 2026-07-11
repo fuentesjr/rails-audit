@@ -11,7 +11,8 @@ the deterministic pipeline (runners → normalizer → impact-first renderer + C
 off-by-default `rails-audit annotate <findings.json>` adds the LLM layer over a truncation-safe
 digest. Pinned toolchain, config ownership, collision-free identity, canonical sort, static
 schema cops (schema-absence surfaced), and custom thoughtbot cops (fat model/controller, service
-object). Suite green (59 runs). CI green.
+object). Suite green (59 runs / 432 assertions). CI green. All work pushed to
+`origin/main` (fuentesjr/rails-audit) @ dda7bb7.
 
 **Only decision-gated / optional work remains.** Nothing left is a straightforward autonomous
 build: the rest of Phase 7 is a product call (findings.json streaming) + an optional optimization
@@ -24,8 +25,9 @@ forks (used it for the Phase 5 redirect).
 
 - [ ] **Decide the final gem name** — `rails-audit` placeholder kept for now (user, this
       session). Rename stays cheap only until a remote/RubyGems name exists.
-- [ ] **Create GitHub remote and push** — deferred (owner decision; not done autonomously).
-      gemspec already points at `fuentesjr/rails-audit`. 12 commits waiting on `main`.
+- [x] **Create GitHub remote and push** — DONE: owner created `origin`
+      (github.com/fuentesjr/rails-audit) and pushed; all session work through Phase 6 is on
+      `origin/main` @ dda7bb7, CI green on each push.
 - [x] **Absorb spike data as test fixtures** — DONE: `test/fixtures/raw/*.json` (normalizer +
       identity ground truth), collision-pair fixtures, exit-code tables encoded in runners.
 - [x] **Verify CI** — GREEN on push (run 29129031294): `bundle exec rake` on Ubuntu + Ruby
@@ -81,9 +83,14 @@ forks (used it for the Phase 5 redirect).
 
 ## Open design items
 
-Tracked in DESIGN.md §9 (the authoritative list). The ones most likely to bite phase 1-2
-work: baseline `Exclude` list, reek exit-code stability across versions, per-rule
-confidence defaults, and the full rule-level category table.
+Tracked in DESIGN.md §9 (the authoritative list). Resolved this session: baseline `Exclude`
+list (Phase 7 slice), `plugins:`≡`require:` cop loading (§4), reek discriminator (Phase 2),
+schema-absent surfacing (Phase 5c). Still open and most likely to matter next: per-rule
+confidence defaults; the full rule-level category/impact table (schema + custom cops added
+ad-hoc rows, no comprehensive review); reek exit-code stability across versions; whether
+individual listing should be confidence-gated; File Access read-vs-write impact granularity;
+live `claude` binary behavior (annotate is mocked in tests). `findings.json` in-memory
+upper-bound / streaming is a Phase-7 product call (below).
 
 ## Log
 
@@ -92,3 +99,13 @@ confidence defaults, and the full rule-level category table.
 - 2026-07-10 — Micro-spikes A (rubocop config landmine, Mastodon) and B (scale,
   Discourse) closed the two biggest open questions; DESIGN.md updated. Workspace
   scaffolded; design doc adopted as canonical here.
+- 2026-07-10/11 — Build session: implemented Phases 1–6 + the Phase 7 Exclude slice
+  (22 commits, 59 tests green, CI green, pushed). Orchestrated build — heavy coding via the
+  codex plugin, lighter tasks via Sonnet subagents, each milestone independently verified
+  before commit. Notable: Phase 5 redirected (Fable-advised, owner-approved) — active_record_doctor
+  + database_consistency reclassified to the Phase 8 execution tier (they require booting the
+  target + a live DB, breaking the static/deterministic model); Phase 5 instead enabled the
+  static rubocop-rails schema cops. Three silent-no-op bugs caught before shipping (schema-loader
+  `Dir.pwd` vs runner `chdir`; unprefixed `Exclude` patterns; custom-cop subprocess loading) —
+  the recurring lesson: verify cops actually FIRE through the real runner, not just that they're
+  configured. Remaining work (rest of Phase 7, Phase 8) is decision-gated.
