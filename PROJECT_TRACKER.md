@@ -15,11 +15,18 @@ app unconditionally; unresolvable dynamic Ruby versions; a broken git-URL ingest
 static pipeline + Phase 8-zero is the shipped product. The 8a harness stays committed as an
 experimental artifact, not wired into CI (live test gated behind `RAILS_AUDIT_LIVE`).
 
-**Next actions when resuming:** (1) confirm whether to PUSH the post-M4 commits — `9fca99a`
-(heredoc fix), `eab90bd` (live-test gate), plus the pending findings-doc + tracker commits — to
-`origin/main` (owner approved pushing 8a work; these are its capstone). (2) Phase 8 is closed;
-the remaining decision-gated items are the Phase 7 follow-ups (findings.json streaming; optional
-runner parallelization) — see the phases list below.
+**Everything through the 8a decision is committed AND pushed — `origin/main` @ `1f0a798`, 0
+unpushed, working tree clean.** Nothing is mid-flight.
+
+**Next actions when resuming (all decision-gated — need owner input, nothing is "just build"):**
+1. **Phase 7 — `findings.json` streaming / in-memory upper-bound** — a product call (DESIGN §9):
+   decide the max in-memory findings size / whether to stream. Blocks nothing today.
+2. **Phase 7 — optional runner parallelization** — modest perf win, adds a concurrency surface;
+   only if perf matters.
+3. **Pre-delivery — final gem name** — `rails-audit` is still a placeholder; cheap to rename
+   only until a RubyGems name exists.
+There is no remaining Phase 8 work: the tier is deferred (see below). If the tier is ever
+revived, `docs/execution-tier-8a-findings.md` has the prerequisite fix-list.
 
 **Both prior owner gates cleared (2026-07-10/11 session).** (1) Phase 8-zero commits are
 PUSHED — `origin/main` @ `c49d8f0`. (2) The sandboxed 8a spike was APPROVED and RAN
