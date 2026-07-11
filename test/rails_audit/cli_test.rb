@@ -10,6 +10,10 @@ class CLITest < Minitest::Test
   SCHEMA_APP = File.expand_path("../fixtures/schema_app", __dir__)
   SCHEMA_MISSING_WARNING = RailsAudit::CLI::SCHEMA_MISSING_WARNING
 
+  def test_default_max_findings
+    assert_equal 500_000, RailsAudit::CLI::DEFAULT_MAX_FINDINGS
+  end
+
   def test_missing_subcommand_prints_usage_and_returns_non_zero
     stdout, stderr = StringIO.new, StringIO.new
     status = RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run([])
@@ -62,6 +66,46 @@ class CLITest < Minitest::Test
       report = File.read(report_path)
       assert_includes report, "# rails-audit report"
       assert_includes report, "## Security"
+    end
+  end
+
+  def test_audit_fails_without_writing_outputs_when_findings_exceed_the_cap
+    Dir.mktmpdir do |output_dir|
+      stdout, stderr = StringIO.new, StringIO.new
+      status = RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
+        ["audit", TARGET_APP, "--output-dir", output_dir, "--max-findings", "1"]
+      )
+
+      refute_equal 0, status
+      refute_path_exists File.join(output_dir, "findings.json")
+      refute_path_exists File.join(output_dir, "RAILS_AUDIT_REPORT.md")
+      assert_includes stderr.string, "1"
+      assert_includes stderr.string, "--max-findings"
+    end
+  end
+
+  def test_audit_writes_outputs_when_findings_are_under_the_cap
+    Dir.mktmpdir do |output_dir|
+      stdout, stderr = StringIO.new, StringIO.new
+      status = RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
+        ["audit", TARGET_APP, "--output-dir", output_dir, "--max-findings", "1000"]
+      )
+
+      assert_equal 0, status, "expected success, stderr: #{stderr.string}"
+      assert_path_exists File.join(output_dir, "findings.json")
+    end
+  end
+
+  def test_audit_rejects_invalid_max_findings_values_as_usage_errors
+    ["0", "not-an-integer"].each do |max_findings|
+      stdout, stderr = StringIO.new, StringIO.new
+      status = RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
+        ["audit", TARGET_APP, "--max-findings", max_findings]
+      )
+
+      refute_equal 0, status
+      assert_includes stderr.string, "Usage: rails-audit audit TARGET"
+      assert_empty stdout.string
     end
   end
 

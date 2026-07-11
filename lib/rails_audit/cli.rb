@@ -7,6 +7,8 @@ require "optparse"
 
 module RailsAudit
   class CLI
+    DEFAULT_MAX_FINDINGS = 500_000
+
     # rubocop-rails schema cops (Rails/UniqueValidationWithoutIndex, Rails/ThreeStateBooleanColumn, ...)
     # read db/schema.rb directly and silently no-op when it's absent (structure.sql targets, or repos
     # that don't commit schema.rb). Silent skips are the exact false-negative class this tool exists to
@@ -23,6 +25,7 @@ module RailsAudit
 
       Options:
               --output-dir DIR          Directory to write outputs (default: .)
+              --max-findings N          Maximum findings before failure (default: 500000)
               --respect-target-config   Respect the target app's own brakeman ignore file
               --output PATH             Execution findings path (default: execution-findings.json)
               --report PATH             Execution report path (default: EXECUTION_AUDIT_REPORT.md)
@@ -114,9 +117,14 @@ module RailsAudit
     end
 
     def audit(argv)
-      options = { output_dir: "." }
+      options = { output_dir: ".", max_findings: DEFAULT_MAX_FINDINGS }
       parser = OptionParser.new do |opts|
         opts.on("--output-dir DIR") { |dir| options[:output_dir] = dir }
+        opts.on("--max-findings N", Integer) do |max_findings|
+          raise OptionParser::InvalidArgument, "must be greater than 0" unless max_findings.positive?
+
+          options[:max_findings] = max_findings
+        end
         opts.on("--respect-target-config") { options[:respect_target_config] = true }
       end
 
@@ -131,10 +139,11 @@ module RailsAudit
       return usage_error unless target
 
       run_pipeline(target: File.expand_path(target), output_dir: File.expand_path(options[:output_dir]),
-                   respect_target_config: options[:respect_target_config] || false)
+                   respect_target_config: options[:respect_target_config] || false,
+                   max_findings: options[:max_findings])
     end
 
-    def run_pipeline(target:, output_dir:, respect_target_config:)
+    def run_pipeline(target:, output_dir:, respect_target_config:, max_findings:)
       raw_dir = File.join(output_dir, "raw")
 
       brakeman = Runners.brakeman(
@@ -155,6 +164,11 @@ module RailsAudit
         schema: schema.fetch(:payload),
         target_root: target
       )
+      if findings.size > max_findings
+        raise RailsAudit::Error,
+              "Audit produced #{findings.size} findings, exceeding the --max-findings cap of " \
+              "#{max_findings}. Re-run with a higher --max-findings value or narrow the target."
+      end
 
       document = Normalizer.document(
         target: target,

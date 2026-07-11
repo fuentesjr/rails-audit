@@ -668,16 +668,10 @@ found while drafting this document:
   forward honestly: exit codes at this scale were inferred from valid output plus the
   known exit-code table, not independently re-captured this run; Discourse is one large
   real app, not a proven upper bound.
-- **New: practical upper bound for in-memory `findings.json` handling.** 196.6MB parsed
-  in 4.12s with no observed memory strain in micro-spike B's environment, so nothing
-  *needs* to change to ship v1 — but this doc doesn't currently define an upper bound or a
-  streaming/chunked-parsing strategy anywhere, and the current everything-in-memory
-  approach (one `JSON.parse` call, per §5/§6/`lib/normalizer.rb`) has real headroom
-  concerns beyond "one very large monorepo": a memory-constrained CI runner, or a future
-  diffing/CI-gating consumer (§4) comparing two 200MB+ `findings.json` files. Needs a
-  product decision on whether line-delimited findings, a retained per-tool file split, or
-  another streaming approach is required before supporting targets larger than this
-  spike's (`implementation-notes-spikeB.md`).
+- **New: practical upper bound for in-memory `findings.json` handling — RESOLVED.** The
+  CLI provides configurable `--max-findings` (default 500,000) and hard-fails when the
+  cap is exceeded; users can raise the cap or narrow the target. Findings are never
+  dropped or truncated. Streaming is deferred (`implementation-notes-spikeB.md`).
 - **Fingerprint-based cross-run identity.** Collisions are measured and real; the
   compound-key + tool-specific-discriminator fix proposed in §5 has not been implemented
   or re-measured against the 1,529 (rubocop) / 140 (reek) known collision groups.
