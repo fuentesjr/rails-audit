@@ -15,10 +15,10 @@ app unconditionally; unresolvable dynamic Ruby versions; a broken git-URL ingest
 static pipeline + Phase 8-zero is the shipped product. The 8a harness stays committed as an
 experimental artifact, not wired into CI (live test gated behind `RAILS_AUDIT_LIVE`).
 
-**The two remaining Phase 7 code items are now DONE and committed (2026-07-11 session) but
-NOT yet pushed** — local `main` is 2 commits ahead of `origin/main`: `4cbf561` (findings
-cap) and `4f045cb` (runner parallelization). Everything before that is committed AND pushed.
-Working tree clean, nothing mid-flight. **Push is owner-gated — ask before pushing.**
+**The two remaining Phase 7 code items are DONE, committed, AND pushed (2026-07-11 session,
+owner-approved push)** — `origin/main` @ `0319165`, 0 unpushed, working tree clean, nothing
+mid-flight. Commits: `4cbf561` (findings cap), `4f045cb` (runner parallelization), `0319165`
+(tracker). CI triggered on push (run 29172504570).
 
 Phase 7 is now effectively complete (Exclude slice + both code items done). The two items
 resolved this session, per owner decisions:
@@ -123,8 +123,8 @@ forks (used it to review the M2 harness — verdict sound, 5 findings fixed pre-
 
 ## Pre-delivery items
 
-- [ ] **Decide the final gem name** — `rails-audit` placeholder kept for now (user, this
-      session). Rename stays cheap only until a remote/RubyGems name exists.
+- [ ] **Decide the final gem name** — `rails-audit` placeholder kept for now; DEFERRED again
+      (owner, 2026-07-11). Rename stays cheap only until a remote/RubyGems name exists.
 - [x] **Create GitHub remote and push** — DONE: owner created `origin`
       (github.com/fuentesjr/rails-audit) and pushed; all session work through Phase 6 is on
       `origin/main` @ dda7bb7, CI green on each push.
