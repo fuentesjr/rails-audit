@@ -6,7 +6,8 @@ class ExecutionHarnessLiveTest < Minitest::Test
   TARGET = File.expand_path("../../fixtures/execution/synthetic_app", __dir__)
 
   def test_full_funnel_against_synthetic_app
-    skip "Docker daemon is unavailable" unless docker_available?
+    skip "live tests not enabled: set RAILS_AUDIT_LIVE=1" if ENV["RAILS_AUDIT_LIVE"].to_s.empty?
+    skip "Docker daemon unavailable" unless docker_available?
     assert File.exist?(File.join(TARGET, ".active_record_doctor.rb")),
            "fixture must try to suppress the unindexed foreign-key detector"
 
