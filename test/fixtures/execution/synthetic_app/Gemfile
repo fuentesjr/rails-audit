@@ -1,0 +1,12 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+ruby "3.4.5"
+
+# Pinned to Rails 7.2 on Ruby 3.4 — a stable, boot-cheap combination with an
+# official ruby:3.4-slim Docker image. See ../../../../docs/notes/phase8a-notes.md
+# for why this pin was chosen.
+gem "rails", "~> 7.2.2"
+gem "pg", "~> 1.5"
+gem "active_record_doctor", "~> 2.0"

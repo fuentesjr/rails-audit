@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+# No host/user/password here — the harness (M2) provisions a throwaway
+# Postgres and points this app at it entirely via DATABASE_URL
+# (docs/execution-tier-proposal.md §3.2). The adapter must still be declared
+# so `rails db:schema:load` knows which schema dumper/loader to use even
+# before ActiveRecord parses DATABASE_URL.
+audit:
+  url: <%= ENV.fetch("DATABASE_URL") %>
+  adapter: postgresql
