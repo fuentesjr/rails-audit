@@ -6,22 +6,49 @@ file gets updated. Evidence archive: `../rails-audit-spike` (read-only).
 
 ## Resume here (new session, start with this)
 
-Two owner-gated decisions are open from the 2026-07-10 session — both need an owner "go":
+**Both prior owner gates cleared (2026-07-10/11 session).** (1) Phase 8-zero commits are
+PUSHED — `origin/main` @ `c49d8f0`. (2) The sandboxed 8a spike is APPROVED and UNDERWAY
+("Full 8a per §7" scope, synthetic-fixture-first sample). Docker runtime stood up (owner
+approved): `docker` CLI 29.6.1 + colima VM (4 CPU / 8 GB), context `colima`.
 
-1. **Push the Phase 8-zero commits.** Three commits sit on local `main`, unpushed:
-   `8885c29` (Phase 8 proposal docs) → `87f0237` (Phase 8-zero implementation) →
-   `314680e` (tracker). Push to `origin/main` when the owner approves. Verify first:
-   `bundle exec rake` (expect `70 runs / 520 assertions / 0 failures`).
-2. **Start the sandboxed 8a spike** (the next approved autonomous build — see below and
-   `docs/execution-tier-proposal.md` §7/§9). It's a heavy lift: Docker hard-dependency +
-   ephemeral DB/secret harness that **executes untrusted target code**, so confirm with the
-   owner before diving in. 8a is scoped as a spike to **measure the full provisioning-funnel
-   success rate first** (clone → bundle install → schema load → boot), with an explicit
-   off-ramp before 8b/8c. Heavy build → codex; review gate is mandatory (it caught two
-   audit-aborting crashes in Phase 8-zero).
+**Delegation model CHANGED mid-session (owner directive):** STOP using Sonnet subagents.
+ALL coding — heavy and light — goes through **codex-dispatch**. **Fable (advisor)** is
+consulted when unsure/stuck or for adversarial review of high-stakes/untrusted-code
+milestones (it replaces the old mandatory Sonnet reviewer gate). I decompose, verify each
+milestone independently (always run the live suite myself — codex's managed session can't
+reach the colima socket, so its live-test result is unreliable), and commit per milestone.
 
-Local-only, not in git: `docs/notes/phase8-zero-notes.md` (gitignored) — Phase 8-zero
-decisions, the SchemaLoader-vs-self-parse deviation, and accepted limitations.
+**8a progress (milestones M1–M5):**
+- **M1 — synthetic fixture app** ✅ committed `dc401a8`. `test/fixtures/execution/synthetic_app/`:
+  minimal bootable Rails ~7.2/Ruby 3.4, ENV-secrets-only boot, Postgres via `DATABASE_URL`,
+  committed schema, seeds two AR-doctor issues (unindexed FK `users.account_id`; missing
+  unique index `users.email`).
+- **M2 — sandbox harness + provisioning funnel** ✅ committed `987cd5a`. `lib/rails_audit/execution/`:
+  container-only isolation (no host mount), two-phase network (install egress open — documented
+  8a deferral; RUN phase on `--internal` net, bridge-disconnect actively verified), throwaway
+  Postgres from committed schema, synthetic env secrets, full hardening + unconditional teardown.
+  Funnel = clone/copy→bundle_install→schema_load→boot, structured `FunnelResult`, report-don't-
+  swallow. Live funnel reaches all-`:ok` against M1 (verified by orchestrator, 0 skips).
+  **Adversarially reviewed by Fable** — verdict: fundamentally sound (no escape/mount/socket/
+  host-shell injection; run-phase isolation enforced). 5 findings fixed pre-commit (2 were
+  M5-blocking: timed-out probe container leak; bad-`.ruby-version` pin crashed instead of
+  structured result). Suite 86/576, 0 skips.
+- **M3 — active_record_doctor integration** ✅ committed `550f192`. Read-only invocation
+  (§3.4); config ownership (§3.5) via `load_config_with_defaults(nil)` — proven by a hostile
+  fixture `.active_record_doctor.rb` that fails to suppress `unindexed_foreign_keys`; fail-loud
+  line parser (§3.7) with strict markers + exact detector-set assertion (raises
+  `UnexpectedActiveRecordDoctorOutputError`, never silent `[]`); findings reuse §5 Finding via
+  Mappings. Live test detects both seeded issues (users.account_id, users.email). Suite 95/622,
+  0 skips (verified by orchestrator).
+- **M4 — `execution-findings.json` + `execution-audit` command** 🔄 NEXT (codex): separate
+  artifact (§3.6), `--i-understand-untrusted-code-runs` gate (§3.8), report section.
+- **M5 — real-app funnel measurement** ⏳ **OWNER-GATED**: runs the harness against a sample of
+  REAL repos to measure §8.3 full-funnel success rate. STOP and get owner approval on the
+  curated target sample before running (executes untrusted real code). Fable flagged M2 fixes
+  #1/#2 as blocking specifically at this batch scale — both now fixed.
+
+Local-only, not in git (gitignored): `docs/notes/phase8-zero-notes.md`, `docs/notes/phase8a-notes.md`
+(8a architecture, install-egress deferral, accepted limitations, verification status).
 
 ## Status
 
