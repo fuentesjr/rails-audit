@@ -6,20 +6,27 @@ file gets updated. Evidence archive: `../rails-audit-spike` (read-only).
 
 ## Status
 
-Phases 1–6 complete + Phase 7 Exclude slice (2026-07-10/11). `rails-audit audit <target>` runs
-the deterministic pipeline (runners → normalizer → impact-first renderer + CLI); a separate,
-off-by-default `rails-audit annotate <findings.json>` adds the LLM layer over a truncation-safe
-digest. Pinned toolchain, config ownership, collision-free identity, canonical sort, static
-schema cops (schema-absence surfaced), and custom thoughtbot cops (fat model/controller, service
-object). Suite green (59 runs / 432 assertions). CI green. All work pushed to
-`origin/main` (fuentesjr/rails-audit) @ dda7bb7.
+Phases 1–6 + Phase 7 Exclude slice + Phase 8-zero complete (2026-07-10/11).
+`rails-audit audit <target>` runs the deterministic pipeline (runners → normalizer →
+impact-first renderer + CLI); a separate, off-by-default `rails-audit annotate <findings.json>`
+adds the LLM layer over a truncation-safe digest. Pinned toolchain, config ownership,
+collision-free identity, canonical sort, static schema cops (schema-absence surfaced), custom
+thoughtbot cops (fat model/controller, service object), and a static schema analyzer (Phase
+8-zero: 5 active_record_doctor schema checks, in-contract). Suite green
+(70 runs / 520 assertions). Phase 8-zero committed locally, **not yet pushed** (owner-gated).
+Prior work on `origin/main` (fuentesjr/rails-audit) @ dda7bb7.
 
-**Only decision-gated / optional work remains.** Nothing left is a straightforward autonomous
-build: the rest of Phase 7 is a product call (findings.json streaming) + an optional optimization
-(runner parallelization), and Phase 8 is the execution-tier proposal (SimpleCov + the reclassified
-active_record_doctor / database_consistency) needing a sandboxing/security-posture design.
-Delegation model: heavy coding → codex, lighter tasks → Sonnet subagents, Fable as advisor on
-forks (used it for the Phase 5 redirect).
+**Phase 8-zero shipped; the sandboxed execution tier is the next build.** Phase 8's
+sandboxing/security-posture design is drafted and adversarially reviewed
+(`docs/execution-tier-proposal.md`); **owner approved BOTH gates (2026-07-10): (1) Phase 8-zero
+static-capture pass — DONE, (2) the sandboxed execution tier — staged 8a→8c spike, NOT YET
+STARTED.** Remaining autonomous-buildable: the sandboxed 8a spike (container/DB/secret harness +
+active_record_doctor's runtime-only checks), which starts by measuring full-funnel success rate.
+Still decision-gated: rest of Phase 7 (findings.json streaming product call; optional runner
+parallelization). Delegation model: heavy coding → codex, lighter tasks → Sonnet subagents, Fable
+as advisor on forks (used it for the Phase 5 redirect and to adversarially review the Phase 8
+proposal; Phase 8-zero built by codex, reviewed by a reviewer subagent that caught two
+audit-aborting crash blockers, all fixed before commit).
 
 ## Pre-delivery items
 
@@ -76,10 +83,40 @@ forks (used it for the Phase 5 redirect).
       false-negative-safe; caught that unprefixed patterns are a silent no-op). REMAINING
       (need owner input): in-memory `findings.json` upper-bound / streaming decision (product
       call, §9); optional runner parallelization (modest perf win, adds concurrency surface).
-- [ ] **Phase 8 — execution-tier tools as their own proposal** (shared trust/execution model:
+- [~] **Phase 8 — execution-tier tools as their own proposal** (shared trust/execution model:
       SimpleCov runs the target's test suite; active_record_doctor + database_consistency boot
       the target app + connect to a live DB). Needs a sandboxing/opt-in design; can't honor the
-      static pipeline's determinism/pinning contracts as-is.
+      static pipeline's determinism/pinning contracts as-is. **PROPOSAL DRAFTED + adversarially
+      reviewed (Fable), decision-gated — `docs/execution-tier-proposal.md`.** Design shape:
+      container-only sandbox (target cloned *inside* the container, no host mount; two-phase
+      network so `bundle install` egress is fenced), throwaway DB from committed schema, synthetic
+      env secrets (real `master.key` impossible → funnel failures reported, never swallowed),
+      CLI-owned tool config, structural mutation-mode lockout, separate non-reproducible
+      `execution-findings.json`, own `execution-audit` command behind an explicit
+      untrusted-code-ack flag. **Headline recommendation: ship a static-capture pass ("Phase
+      8-zero") FIRST** — a big slice of active_record_doctor/database_consistency checks
+      (unindexed FKs, extraneous indexes, mismatched FK types, table-without-PK) are pure
+      `db/schema.rb` analysis, capturable inside the existing contracts via the Phase 5 parser /
+      Phase 6 cop machinery; the throwaway-DB design collapses the "live DB" value to
+      runtime-reflection-only, leaving **SimpleCov as the tier's only irreplaceable payload**. So
+      the sandboxed tier is a conditional, staged spike (8a AR-doctor → 8b database_consistency →
+      8c SimpleCov), not a commitment. **Owner approved both (2026-07-10).**
+- [x] **Phase 8-zero — static schema analyzer** (the in-contract static-capture pass): a fourth
+      static tool alongside brakeman/rubocop/reek, reading only committed `db/schema.rb` (no boot,
+      no DB, no network — fully inside the determinism/pinning contract). Five active_record_doctor
+      schema checks: `Schema/TableWithoutPrimaryKey` (high), `Schema/MismatchedForeignKeyType`
+      (high), `Schema/UnindexedForeignKey` (medium), `Schema/ExtraneousIndex` (low),
+      `Schema/ShortPrimaryKeyType` (medium). Self-contained schema-AST model (SchemaLoader lacks
+      `create_table` options/PK + `add_foreign_key`, so it's insufficient — justified deviation
+      from the proposal's "reuse SchemaLoader" line, noted in `docs/notes/phase8-zero-notes.md`).
+      database_consistency added no net-new static value (duplicates AR-doctor's set; its
+      ThreeStateBoolean check already ships as `Rails/ThreeStateBooleanColumn`); the two
+      hybrid model/source-AST checks (`MissingIndexChecker`, `MissingIndexFindByChecker`) deferred.
+      Built by codex; reviewer subagent caught **two audit-aborting crash blockers** (lambda/
+      function column defaults; inferred-FK to custom/absent-PK table — both uncaught NoMethodError
+      that took down the whole audit) plus a unique-index false-positive and a duplicate-index
+      false-negative — all fixed with regression tests. Suite 70/520 green; verified firing through
+      the real CLI pipeline (integration test).
 
 ## Open design items
 
@@ -109,3 +146,23 @@ upper-bound / streaming is a Phase-7 product call (below).
   `Dir.pwd` vs runner `chdir`; unprefixed `Exclude` patterns; custom-cop subprocess loading) —
   the recurring lesson: verify cops actually FIRE through the real runner, not just that they're
   configured. Remaining work (rest of Phase 7, Phase 8) is decision-gated.
+- 2026-07-10 — Drafted the Phase 8 execution-tier proposal (`docs/execution-tier-proposal.md`)
+  and had Fable adversarially review it. Review caught load-bearing corrections, all folded in:
+  the "no egress" claim contradicted `bundle install` (which needs network + runs code → two-phase
+  network); a read-only host mount would break the tools' own writes (→ clone *inside* the
+  container, no host mount); and — the sharpest point — the throwaway-DB-from-committed-schema
+  design collapses the two DB tools' "live DB" value to runtime-reflection-only, and several
+  active_record_doctor checks are pure `db/schema.rb` analysis, so a static-capture "Phase 8-zero"
+  should come first and SimpleCov is the tier's only irreplaceable payload. Also added: explicit
+  threat-model boundary (container-class, not hostile-kernel-escape), execution-tool config
+  ownership (the founding lesson), full-funnel (not just boot) success metric.
+- 2026-07-10 — Owner approved both Phase 8 gates. Built **Phase 8-zero** (static schema analyzer,
+  5 active_record_doctor schema checks, in-contract) — recon (Sonnet helper) enumerated + bucketed
+  every AR-doctor/database_consistency check; heavy build via codex against a written brief;
+  reviewer subagent adversarially reviewed and caught two audit-aborting crash blockers (lambda/
+  function column defaults; inferred-FK to custom/absent-PK table) + a unique-index false positive
+  + a duplicate-index false negative — all fixed with regression tests before commit. Verified
+  firing through the real CLI pipeline. Suite 70/520 green. The recurring lesson held again:
+  the worst outcome isn't a miss, it's a crash/silent-no-op that reads as "clean" — the review
+  gate is what caught it. Committed locally on main (3 commits: proposal / implementation /
+  tracker); **not pushed** (owner-gated).
