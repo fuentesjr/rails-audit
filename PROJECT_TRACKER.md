@@ -4,6 +4,25 @@ Working state and next steps. The authoritative spec is [`docs/DESIGN.md`](docs/
 phases below mirror its delivery plan (§10) — if they drift, the design doc wins and this
 file gets updated. Evidence archive: `../rails-audit-spike` (read-only).
 
+## Resume here (new session, start with this)
+
+Two owner-gated decisions are open from the 2026-07-10 session — both need an owner "go":
+
+1. **Push the Phase 8-zero commits.** Three commits sit on local `main`, unpushed:
+   `8885c29` (Phase 8 proposal docs) → `87f0237` (Phase 8-zero implementation) →
+   `314680e` (tracker). Push to `origin/main` when the owner approves. Verify first:
+   `bundle exec rake` (expect `70 runs / 520 assertions / 0 failures`).
+2. **Start the sandboxed 8a spike** (the next approved autonomous build — see below and
+   `docs/execution-tier-proposal.md` §7/§9). It's a heavy lift: Docker hard-dependency +
+   ephemeral DB/secret harness that **executes untrusted target code**, so confirm with the
+   owner before diving in. 8a is scoped as a spike to **measure the full provisioning-funnel
+   success rate first** (clone → bundle install → schema load → boot), with an explicit
+   off-ramp before 8b/8c. Heavy build → codex; review gate is mandatory (it caught two
+   audit-aborting crashes in Phase 8-zero).
+
+Local-only, not in git: `docs/notes/phase8-zero-notes.md` (gitignored) — Phase 8-zero
+decisions, the SchemaLoader-vs-self-parse deviation, and accepted limitations.
+
 ## Status
 
 Phases 1–6 + Phase 7 Exclude slice + Phase 8-zero complete (2026-07-10/11).
