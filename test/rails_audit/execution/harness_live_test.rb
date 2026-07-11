@@ -17,7 +17,7 @@ class ExecutionHarnessLiveTest < Minitest::Test
     assert_equal "postgresql", result.versions.fetch(:adapter)
     assert_equal "3.4.5", result.versions.fetch(:ruby)
     assert_equal "2.0.1", result.versions.fetch(:active_record_doctor)
-    assert_equal 1, result.tool_runs.fetch(:active_record_doctor).fetch(:exit_code)
+    assert_equal 1, result.tool_runs.fetch(:active_record_doctor).exit_code
 
     unindexed = result.findings.find do |finding|
       finding.rule == "unindexed_foreign_keys" && finding.context.fetch(:subject) == "users.account_id"

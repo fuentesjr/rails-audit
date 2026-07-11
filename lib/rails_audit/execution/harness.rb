@@ -36,6 +36,7 @@ module RailsAudit
         @versions = { ruby: profile.ruby_version, rails: nil, adapter: profile.adapter.to_s }
         @image_ref = "rails-audit-execution-ruby:#{profile.ruby_image_version}"
         build_image!(profile.ruby_image_version)
+        resolve_image_digest!
         create_private_network!
         create_app_container!
 
@@ -96,6 +97,7 @@ module RailsAudit
         @stages = []
         @versions = { ruby: nil, rails: nil, adapter: nil }
         @image_ref = nil
+        @image_digest = nil
         @findings = []
         @tool_runs = {}
       end
@@ -156,6 +158,12 @@ module RailsAudit
           "--tag", @image_ref,
           "--file", File.expand_path("Dockerfile", __dir__), __dir__
         )
+      end
+
+      def resolve_image_digest!
+        result = docker!("image", "inspect", "--format", "{{.Id}}", @image_ref)
+        @image_digest = result.stdout.strip
+        raise RailsAudit::Error, "Docker returned no digest for #{@image_ref}" if @image_digest.empty?
       end
 
       def create_private_network!
@@ -298,14 +306,41 @@ module RailsAudit
           "bundle", "exec", "ruby", ACTIVE_RECORD_DOCTOR_RUNNER,
           stage: :active_record_doctor, env: target_env
         )
-        @findings = ActiveRecordDoctorParser.new.parse(
+        parsed_findings = ActiveRecordDoctorParser.new.parse(
           result.stdout, diagnostic_output: result.output
         )
-        @tool_runs[:active_record_doctor] = {
-          version: @versions.fetch(:active_record_doctor),
-          exit_code: result.exit_code,
-          timed_out: result.timed_out
-        }.freeze
+        failure = active_record_doctor_failure(result, parsed_findings)
+        if failure
+          @findings = []
+          @tool_runs[:active_record_doctor] = tool_run(result, status: :failed, reason: failure)
+          return
+        end
+
+        @findings = parsed_findings
+        status = @findings.empty? ? :clean : :findings
+        @tool_runs[:active_record_doctor] = tool_run(result, status:, reason: "")
+      rescue UnexpectedActiveRecordDoctorOutputError => e
+        @findings = []
+        @tool_runs[:active_record_doctor] = tool_run(result, status: :failed, reason: e.message)
+      end
+
+      def active_record_doctor_failure(result, findings)
+        return "active_record_doctor timed out" if result.timed_out
+
+        expected_exit = findings.empty? ? 0 : 1
+        return if result.exit_code == expected_exit
+
+        reason = "active_record_doctor exited #{result.exit_code}; " \
+                 "expected #{expected_exit} for #{findings.empty? ? 'clean' : 'findings'} output"
+        diagnostic = result.stderr.strip
+        diagnostic.empty? ? reason : "#{reason}: #{diagnostic}"
+      end
+
+      def tool_run(result, status:, reason:)
+        ToolRun.new(
+          name: :active_record_doctor, version: @versions.fetch(:active_record_doctor),
+          status:, exit_code: result.exit_code, timed_out: result.timed_out, reason:
+        )
       end
 
       def target_file?(relative_path)
@@ -364,9 +399,20 @@ module RailsAudit
       def finish
         missing = STAGE_NAMES.drop(@stages.length)
         missing.each { |name| record(name, :skipped, 0.0, "funnel stopped") }
+        record_skipped_tool unless @tool_runs.key?(:active_record_doctor)
         FunnelResult.new(
           stages: @stages, versions: @versions, image_ref: @image_ref,
-          findings: @findings, tool_runs: @tool_runs
+          image_digest: @image_digest,
+          findings: @findings, tool_runs: @tool_runs.values
+        )
+      end
+
+      def record_skipped_tool
+        funnel_outcome = @stages.find { |stage| !%i[ok skipped].include?(stage.status) }&.status || :ok
+        @tool_runs[:active_record_doctor] = ToolRun.new(
+          name: :active_record_doctor, version: @versions[:active_record_doctor],
+          status: :skipped, exit_code: nil, timed_out: false,
+          reason: "execution funnel ended with #{funnel_outcome} before active_record_doctor ran"
         )
       end
 

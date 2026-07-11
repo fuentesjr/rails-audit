@@ -19,16 +19,20 @@ module RailsAudit
     USAGE = <<~USAGE
       Usage: rails-audit audit TARGET [options]
              rails-audit annotate FINDINGS_JSON [--output PATH]
+             rails-audit execution-audit TARGET --i-understand-untrusted-code-runs [options]
 
       Options:
               --output-dir DIR          Directory to write outputs (default: .)
               --respect-target-config   Respect the target app's own brakeman ignore file
+              --output PATH             Execution findings path (default: execution-findings.json)
+              --report PATH             Execution report path (default: EXECUTION_AUDIT_REPORT.md)
     USAGE
 
-    def initialize(stdout: $stdout, stderr: $stderr, claude_runner: nil)
+    def initialize(stdout: $stdout, stderr: $stderr, claude_runner: nil, execution_harness: nil)
       @stdout = stdout
       @stderr = stderr
       @claude_runner = claude_runner
+      @execution_harness = execution_harness
     end
 
     def run(argv)
@@ -39,6 +43,8 @@ module RailsAudit
         audit(rest)
       when "annotate"
         annotate(rest)
+      when "execution-audit"
+        execution_audit(rest)
       else
         usage_error
       end
@@ -48,6 +54,40 @@ module RailsAudit
     end
 
     private
+
+    def execution_audit(argv)
+      options = {
+        output: "execution-findings.json", report: "EXECUTION_AUDIT_REPORT.md",
+        acknowledged: false
+      }
+      parser = OptionParser.new do |opts|
+        opts.on("--output PATH") { |path| options[:output] = path }
+        opts.on("--report PATH") { |path| options[:report] = path }
+        opts.on("--i-understand-untrusted-code-runs") { options[:acknowledged] = true }
+      end
+
+      begin
+        parser.parse!(argv)
+      rescue OptionParser::ParseError => e
+        @stderr.puts e.message
+        return usage_error
+      end
+
+      target = argv.shift
+      return usage_error unless target && argv.empty?
+      unless options[:acknowledged]
+        @stderr.puts "Refusing to run untrusted target code. Re-run with " \
+                     "--i-understand-untrusted-code-runs to acknowledge arbitrary code execution."
+        return 1
+      end
+
+      arguments = {
+        target: File.expand_path(target), output_path: File.expand_path(options[:output]),
+        report_path: File.expand_path(options[:report]), stdout: @stdout
+      }
+      arguments[:harness] = @execution_harness if @execution_harness
+      ExecutionAudit.run(**arguments)
+    end
 
     def annotate(argv)
       options = { output: "ANNOTATIONS.md" }

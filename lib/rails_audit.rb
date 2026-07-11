@@ -7,6 +7,7 @@ require_relative "rails_audit/normalizer"
 require_relative "rails_audit/report"
 require_relative "rails_audit/digest_builder"
 require_relative "rails_audit/annotate"
+require_relative "rails_audit/execution_audit"
 
 module RailsAudit
   class Error < StandardError; end

@@ -7,12 +7,17 @@ class ExecutionHarnessTest < Minitest::Test
   class FakeDocker
     attr_reader :commands, :network
 
-    def initialize(fail_build: false, fail_bundle: false, fail_postgres: false, file_check_error: false)
+    def initialize(fail_build: false, fail_bundle: false, fail_postgres: false,
+                   file_check_error: false, malformed_tool: false,
+                   tool_exit_code: 0, tool_timed_out: false)
       @commands = []
       @fail_build = fail_build
       @fail_bundle = fail_bundle
       @fail_postgres = fail_postgres
       @file_check_error = file_check_error
+      @malformed_tool = malformed_tool
+      @tool_exit_code = tool_exit_code
+      @tool_timed_out = tool_timed_out
     end
 
     def capture(*argv, timeout:, env: {})
@@ -25,9 +30,16 @@ class ExecutionHarnessTest < Minitest::Test
         return result(stdout: "RAILS_AUDIT_RUBY\n3.4.5\nRAILS_AUDIT_GEMFILE\ngem \"pg\"\nRAILS_AUDIT_DATABASE\n")
       end
       return result(stderr: "image not found", exit_code: 1) if @fail_build && argv[0, 2] == ["docker", "build"]
+      return result(stdout: "sha256:fake-image-id\n") if argv[0, 3] == ["docker", "image", "inspect"]
       return result(stdout: "3.4.5\n7.2.3.1\n2.0.1\n") if argv.any? { |arg| arg.include?("Gem.loaded_specs") }
       if argv.include?(RailsAudit::Execution::Harness::ACTIVE_RECORD_DOCTOR_RUNNER)
-        return result(stdout: clean_active_record_doctor_output)
+        return result(stderr: "tool crashed", exit_code: 2) if @malformed_tool
+
+        return result(
+          stdout: clean_active_record_doctor_output,
+          exit_code: @tool_exit_code,
+          timed_out: @tool_timed_out
+        )
       end
       return result(stdout: "#{network}\n") if argv[0, 2] == ["docker", "inspect"]
       if @file_check_error && argv.each_cons(2).any? { |pair| pair == ["test", "-f"] }
@@ -62,9 +74,9 @@ class ExecutionHarnessTest < Minitest::Test
       lines.join("\n") << "\n"
     end
 
-    def result(stdout: "", stderr: "", exit_code: 0)
+    def result(stdout: "", stderr: "", exit_code: 0, timed_out: false)
       RailsAudit::Execution::CommandResult.new(
-        stdout:, stderr:, exit_code:, timed_out: false
+        stdout:, stderr:, exit_code:, timed_out:
       )
     end
   end
@@ -174,8 +186,43 @@ class ExecutionHarnessTest < Minitest::Test
         "bundle", "exec", "ruby", RailsAudit::Execution::Harness::ACTIVE_RECORD_DOCTOR_RUNNER
       ], analysis.last(4)
       refute(analysis.any? { |argument| argument.match?(/(?:fix|generate|migration)/i) })
-      assert_equal "2.0.1", result.tool_runs.fetch(:active_record_doctor).fetch(:version)
+      assert_equal "2.0.1", result.tool_runs.fetch(:active_record_doctor).version
+      assert_equal :clean, result.tool_runs.fetch(:active_record_doctor).status
+      assert_equal "sha256:fake-image-id", result.image_digest
       assert_empty result.findings
+    end
+  end
+
+  def test_tool_failure_is_structured_and_cannot_look_clean
+    with_target('gem "pg"') do |target|
+      result = RailsAudit::Execution::Harness.new(
+        command: FakeDocker.new(malformed_tool: true)
+      ).run(source: target)
+
+      tool = result.tool_runs.fetch(:active_record_doctor)
+      assert_equal :tool_failed, result.outcome
+      assert_equal :ok, result.funnel_outcome
+      assert_equal :failed, tool.status
+      assert_equal 2, tool.exit_code
+      assert_includes tool.reason, "tool crashed"
+      assert_empty result.findings
+    end
+  end
+
+  def test_parseable_clean_output_with_failed_process_status_cannot_look_clean
+    [
+      FakeDocker.new(tool_exit_code: 2),
+      FakeDocker.new(tool_exit_code: nil, tool_timed_out: true)
+    ].each do |command|
+      with_target('gem "pg"') do |target|
+        result = RailsAudit::Execution::Harness.new(command:).run(source: target)
+        tool = result.tool_runs.fetch(:active_record_doctor)
+
+        assert_equal :tool_failed, result.outcome
+        assert_equal :failed, tool.status
+        refute_empty tool.reason
+        assert_empty result.findings
+      end
     end
   end
 

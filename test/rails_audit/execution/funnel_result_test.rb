@@ -13,10 +13,9 @@ class FunnelResultTest < Minitest::Test
       ],
       versions: { ruby: "3.4.5", rails: "7.2.3.1", adapter: "postgresql" },
       image_ref: "rails-audit/ruby:3.4",
+      image_digest: "sha256:abc123",
       findings: [finding],
-      tool_runs: {
-        active_record_doctor: { version: "2.0.1", exit_code: 1 }
-      }
+      tool_runs: [tool_run(:findings, version: "2.0.1", exit_code: 1)]
     )
 
     assert_equal :ok, result.outcome
@@ -30,8 +29,12 @@ class FunnelResultTest < Minitest::Test
       },
       resolved_versions: { ruby: "3.4.5", rails: "7.2.3.1", adapter: "postgresql" },
       container_image_ref: "rails-audit/ruby:3.4",
+      container_image_digest: "sha256:abc123",
       tool_runs: {
-        active_record_doctor: { version: "2.0.1", exit_code: 1 }
+        active_record_doctor: {
+          version: "2.0.1", status: "findings", exit_code: 1,
+          timed_out: false, reason: ""
+        }
       },
       findings: [finding.to_h]
     }, result.to_h)
@@ -46,7 +49,8 @@ class FunnelResultTest < Minitest::Test
         stage(:boot, :skipped, 0.0, "bundle_install did not complete")
       ],
       versions: { ruby: "3.4", rails: nil, adapter: "postgresql" },
-      image_ref: "rails-audit/ruby:3.4"
+      image_ref: "rails-audit/ruby:3.4",
+      tool_runs: [tool_run(:skipped, reason: "install_failed prevented tool execution")]
     )
 
     assert_equal :install_failed, result.outcome
@@ -72,17 +76,89 @@ class FunnelResultTest < Minitest::Test
           stage(:schema_load, :skipped, 0.0, "skipped"),
           stage(:boot, :skipped, 0.0, "skipped")
         ],
-        versions: {}, image_ref: nil, findings: [finding]
+        versions: {}, image_ref: nil, findings: [finding],
+        tool_runs: [tool_run(:skipped, reason: "install_failed prevented tool execution")]
       )
     end
 
     assert_includes error.message, "findings"
   end
 
+  def test_tool_failure_is_the_authoritative_overall_outcome
+    result = RailsAudit::Execution::FunnelResult.new(
+      stages: RailsAudit::Execution::STAGE_NAMES.map { |name| stage(name, :ok, 0.1, "") },
+      versions: {}, image_ref: "image",
+      tool_runs: [tool_run(:failed, exit_code: 2, reason: "tool crashed")]
+    )
+
+    assert_equal :ok, result.funnel_outcome
+    assert_equal :tool_failed, result.outcome
+    assert_equal "tool_failed", result.to_h.fetch(:outcome)
+  end
+
+  def test_tool_run_rejects_unknown_status_and_requires_a_reason
+    error = assert_raises(ArgumentError) { tool_run(:unknown, reason: "bad status") }
+    assert_includes error.message, "unknown tool status"
+
+    assert_raises(ArgumentError) do
+      RailsAudit::Execution::ToolRun.new(
+        name: :active_record_doctor, version: "2.0.1", status: :clean,
+        exit_code: 0, timed_out: false
+      )
+    end
+  end
+
+  def test_funnel_result_rejects_raw_or_missing_tool_runs
+    stages = RailsAudit::Execution::STAGE_NAMES.map { |name| stage(name, :ok, 0.1, "") }
+
+    assert_raises(ArgumentError) do
+      RailsAudit::Execution::FunnelResult.new(
+        stages:, versions: {}, image_ref: "image",
+        tool_runs: [{ status: "clean", reason: "" }]
+      )
+    end
+    assert_raises(ArgumentError) do
+      RailsAudit::Execution::FunnelResult.new(
+        stages:, versions: {}, image_ref: "image", tool_runs: []
+      )
+    end
+  end
+
+  def test_funnel_result_rejects_tool_status_inconsistent_with_funnel
+    successful_stages = RailsAudit::Execution::STAGE_NAMES.map do |name|
+      stage(name, :ok, 0.1, "")
+    end
+    failed_stages = [
+      stage(:clone_or_copy, :ok, 0.1, ""),
+      stage(:bundle_install, :install_failed, 0.1, "failed"),
+      stage(:schema_load, :skipped, 0.0, "skipped"),
+      stage(:boot, :skipped, 0.0, "skipped")
+    ]
+
+    assert_raises(ArgumentError) do
+      RailsAudit::Execution::FunnelResult.new(
+        stages: successful_stages, versions: {}, image_ref: "image",
+        tool_runs: [tool_run(:skipped, reason: "did not run")]
+      )
+    end
+    assert_raises(ArgumentError) do
+      RailsAudit::Execution::FunnelResult.new(
+        stages: failed_stages, versions: {}, image_ref: "image",
+        tool_runs: [tool_run(:clean)]
+      )
+    end
+  end
+
   private
 
   def stage(name, status, duration, reason)
     RailsAudit::Execution::StageResult.new(name:, status:, duration:, reason:)
+  end
+
+  def tool_run(status, version: nil, exit_code: nil, timed_out: false, reason: "")
+    RailsAudit::Execution::ToolRun.new(
+      name: :active_record_doctor, version:, status:, exit_code:, timed_out:, reason:
+    )
   end
 
   def finding

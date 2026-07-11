@@ -31,10 +31,78 @@ module RailsAudit
       "#{blocks.join("\n\n")}\n"
     end
 
+    def render_execution(document)
+      stages = document.fetch(:funnel_stages)
+      tools = document.fetch(:tool_runs)
+      findings = document.fetch(:findings)
+      blocks = [
+        "# Execution tier (not warranted reproducible)\n\nTarget: #{document.fetch(:target)}",
+        execution_status_block(document, stages, tools),
+        execution_findings_block(document.fetch(:outcome), findings)
+      ]
+      "#{blocks.join("\n\n")}\n"
+    end
+
     def target_block(document)
       "# rails-audit report\n\nTarget: #{document.fetch(:target)}"
     end
     private_class_method :target_block
+
+    def execution_status_block(document, stages, tools)
+      lines = [
+        "## Status", "", "**Overall status: #{document.fetch(:outcome)}**", "",
+        "- Pinned by rails-audit: #{document.fetch(:pinned_by_us)}",
+        "- Warranted reproducible: #{document.fetch(:warranted_reproducible)}",
+        "- Container image: #{document.fetch(:container_image_ref)} " \
+        "(#{document.fetch(:container_image_digest)})",
+        "- DB adapter: #{document.fetch(:db_adapter)}", "", "### Funnel stages", "",
+        "| Stage | Status | Reason |", "| --- | --- | --- |"
+      ]
+      stages.each do |name, stage|
+        lines << "| #{name} | #{stage.fetch(:status)} | #{execution_cell(stage.fetch(:reason))} |"
+      end
+      lines.concat(["", "### Tools", "", "| Tool | Version | Status | Reason |", "| --- | --- | --- | --- |"])
+      tools.each do |name, tool|
+        lines << "| #{name} | #{tool.fetch(:version)} | #{tool.fetch(:status)} | " \
+                 "#{execution_cell(tool.fetch(:reason))} |"
+      end
+      lines.join("\n")
+    end
+    private_class_method :execution_status_block
+
+    def execution_findings_block(outcome, findings)
+      lines = ["## Findings", ""]
+      if findings.empty?
+        message = if outcome == "ok"
+                    "No execution-tier findings."
+                  elsif outcome == "tool_failed"
+                    "No findings because an execution tool failed."
+                  else
+                    "No findings because the execution funnel did not complete."
+                  end
+        lines << message
+        return lines.join("\n")
+      end
+
+      ordered_categories(findings).each do |category|
+        lines << "### #{category.capitalize}"
+        findings.select { |finding| finding.fetch(:category) == category }.each do |finding|
+          location = finding.fetch(:location)
+          lines << "- `#{location.fetch(:file)}:#{location.fetch(:start_line)}` " \
+                   "**#{finding.fetch(:rule)}** — #{finding.fetch(:message)} " \
+                   "(impact: #{finding.fetch(:impact)}, confidence: #{finding.fetch(:confidence)})"
+        end
+        lines << ""
+      end
+      lines.pop
+      lines.join("\n")
+    end
+    private_class_method :execution_findings_block
+
+    def execution_cell(value)
+      value.to_s.gsub("|", "\\|").gsub("\n", "<br>")
+    end
+    private_class_method :execution_cell
 
     def tools_block(document)
       bullets = document.fetch(:tools).map do |tool|
