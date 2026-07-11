@@ -786,4 +786,9 @@ regression cases, and the verified exit-code/version tables.
    live database. This tier needs a sandboxing/opt-in design (ephemeral throwaway DB, container
    isolation, arbitrary-code-execution acceptance) and can't honor the static pipeline's
    determinism/pinning contracts as-is. Not bundled into any of the above phases; scoped and
-   reviewed separately.
+   reviewed separately. **The sandboxing/opt-in design is drafted, decision-gated, in
+   [`docs/execution-tier-proposal.md`](execution-tier-proposal.md)** (adversarially reviewed);
+   its headline finding is that a static-capture pass ("Phase 8-zero") captures a large slice of
+   the two DB tools' value inside the existing contracts, leaving SimpleCov as the tier's only
+   irreplaceable payload — so the proposal recommends the static pass first and the sandboxed
+   tier only as a conditional, staged spike.
