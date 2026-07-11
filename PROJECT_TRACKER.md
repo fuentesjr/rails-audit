@@ -6,10 +6,25 @@ file gets updated. Evidence archive: `../rails-audit-spike` (read-only).
 
 ## Resume here (new session, start with this)
 
+**Phase 8a spike is COMPLETE and the sandboxed execution tier is DEFERRED (owner-approved
+2026-07-11). NO-GO on 8b/8c.** The full go/no-go analysis is
+[`docs/execution-tier-8a-findings.md`](docs/execution-tier-8a-findings.md). Headline: M5
+measured **0/6 full-funnel success on real apps** — structural failures (missing base-image
+system libs; the tier requiring targets to bundle active_record_doctor, which blocks every real
+app unconditionally; unresolvable dynamic Ruby versions; a broken git-URL ingestion path). The
+static pipeline + Phase 8-zero is the shipped product. The 8a harness stays committed as an
+experimental artifact, not wired into CI (live test gated behind `RAILS_AUDIT_LIVE`).
+
+**Next actions when resuming:** (1) confirm whether to PUSH the post-M4 commits — `9fca99a`
+(heredoc fix), `eab90bd` (live-test gate), plus the pending findings-doc + tracker commits — to
+`origin/main` (owner approved pushing 8a work; these are its capstone). (2) Phase 8 is closed;
+the remaining decision-gated items are the Phase 7 follow-ups (findings.json streaming; optional
+runner parallelization) — see the phases list below.
+
 **Both prior owner gates cleared (2026-07-10/11 session).** (1) Phase 8-zero commits are
-PUSHED — `origin/main` @ `c49d8f0`. (2) The sandboxed 8a spike is APPROVED and UNDERWAY
-("Full 8a per §7" scope, synthetic-fixture-first sample). Docker runtime stood up (owner
-approved): `docker` CLI 29.6.1 + colima VM (4 CPU / 8 GB), context `colima`.
+PUSHED — `origin/main` @ `c49d8f0`. (2) The sandboxed 8a spike was APPROVED and RAN
+("Full 8a per §7" scope). Docker runtime stood up (owner approved): `docker` CLI 29.6.1 +
+colima VM (4 CPU / 8 GB), context `colima`.
 
 **Delegation model CHANGED mid-session (owner directive):** STOP using Sonnet subagents.
 ALL coding — heavy and light — goes through **codex-dispatch**. **Fable (advisor)** is
@@ -51,12 +66,16 @@ reach the colima socket, so its live-test result is unreliable), and commit per 
   object w/ single-source outcome; weak report test). Orchestrator verified live e2e: gate
   refuses without ack, artifact carries envelope + both seeded findings, findings.json untouched.
   Suite 107/730, 0 skips. **This completes the BUILDABLE portion of 8a.**
-- **M5 — real-app funnel measurement** ⏳ **OWNER-GATED — STOPPED HERE FOR OWNER DECISION**:
-  point the harness at a curated sample of REAL repos to measure §8.3 full-funnel success rate
-  (clone→bundle install→schema load→boot) + operational cost → the go/no-go data for 8b/8c.
-  Executes untrusted real code, so needs owner approval on the target sample + off-ramp criteria
-  before running. Fable's M2 fixes #1/#2 (probe leak, bad-Ruby-pin crash) were flagged blocking
-  precisely at this batch scale — both fixed.
+- **M5 — real-app funnel measurement** ✅ DONE → **NO-GO (owner-approved 2026-07-11)**. Ran the
+  harness against 6 real OSS repos (rubygems.org, huginn, chatwoot, lobsters, mastodon,
+  discourse). **0/6 reached schema_load or boot.** Failures were structural: (A) base image
+  lacks system libs for native gems (zlib/yaml/idn), (B) tier requires target to bundle
+  active_record_doctor → blocks EVERY real app (chatwoot's install succeeded, still failed here),
+  (C) unresolvable dynamic Ruby versions, (D) git-URL ingestion broken (3 bugs: heredoc FIXED
+  `9fca99a`; workdir chdir + probe-tmpfs sizing FOUND-not-fixed, deferred with the tier). Full
+  writeup + "if ever revisited" list: `docs/execution-tier-8a-findings.md`. Measurement used a
+  local-path pivot (host-clone → docker cp) to bypass the git-ingestion bugs and measure the
+  funnel core. **Decision: do not build 8b/8c; static pipeline + Phase 8-zero is the product.**
 
 Local-only, not in git (gitignored): `docs/notes/phase8-zero-notes.md`, `docs/notes/phase8a-notes.md`
 (8a architecture, install-egress deferral, accepted limitations, verification status).
@@ -73,17 +92,15 @@ thoughtbot cops (fat model/controller, service object), and a static schema anal
 (70 runs / 520 assertions). Phase 8-zero committed locally, **not yet pushed** (owner-gated).
 Prior work on `origin/main` (fuentesjr/rails-audit) @ dda7bb7.
 
-**Phase 8-zero shipped; the sandboxed execution tier is the next build.** Phase 8's
-sandboxing/security-posture design is drafted and adversarially reviewed
-(`docs/execution-tier-proposal.md`); **owner approved BOTH gates (2026-07-10): (1) Phase 8-zero
-static-capture pass — DONE, (2) the sandboxed execution tier — staged 8a→8c spike, NOT YET
-STARTED.** Remaining autonomous-buildable: the sandboxed 8a spike (container/DB/secret harness +
-active_record_doctor's runtime-only checks), which starts by measuring full-funnel success rate.
-Still decision-gated: rest of Phase 7 (findings.json streaming product call; optional runner
-parallelization). Delegation model: heavy coding → codex, lighter tasks → Sonnet subagents, Fable
-as advisor on forks (used it for the Phase 5 redirect and to adversarially review the Phase 8
-proposal; Phase 8-zero built by codex, reviewed by a reviewer subagent that caught two
-audit-aborting crash blockers, all fixed before commit).
+**Phase 8-zero shipped; the sandboxed 8a spike RAN and the tier is DEFERRED (NO-GO on 8b/8c,
+owner-approved 2026-07-11).** Phase 8's sandboxing design (`docs/execution-tier-proposal.md`)
+was built as milestones M1–M4 and measured (M5): 0/6 full-funnel success on real apps →
+structural failures → tier deferred per the proposal's own off-ramp. Go/no-go writeup:
+`docs/execution-tier-8a-findings.md`. Phase 8 is now CLOSED. Still decision-gated: rest of
+Phase 7 (findings.json streaming product call; optional runner parallelization). Delegation
+model (updated mid-session per owner): heavy AND light coding → **codex-dispatch** (no Sonnet
+subagents); **Fable** for adversarial review of high-stakes/untrusted-code milestones + hard
+forks (used it to review the M2 harness — verdict sound, 5 findings fixed pre-commit).
 
 ## Pre-delivery items
 
@@ -140,11 +157,19 @@ audit-aborting crash blockers, all fixed before commit).
       false-negative-safe; caught that unprefixed patterns are a silent no-op). REMAINING
       (need owner input): in-memory `findings.json` upper-bound / streaming decision (product
       call, §9); optional runner parallelization (modest perf win, adds concurrency surface).
-- [~] **Phase 8 — execution-tier tools as their own proposal** (shared trust/execution model:
+- [x] **Phase 8 — execution-tier tools as their own proposal** — CLOSED: 8a spike ran, tier
+      DEFERRED (NO-GO on 8b/8c, owner-approved 2026-07-11). M1–M4 built the sandbox harness +
+      `execution-audit` command; M5 measured **0/6 full-funnel success on real apps** (structural
+      failures: base-image system libs, tier-requires-target-to-bundle-AR-doctor, dynamic Ruby
+      versions, broken git ingestion). Off-ramp taken per the proposal's §7/§9.2. Full writeup:
+      **`docs/execution-tier-8a-findings.md`**. 8a harness stays committed as an experimental
+      artifact, not in the supported product (live test gated behind `RAILS_AUDIT_LIVE`). Original
+      proposal + design shape below, for the record:
+      (shared trust/execution model:
       SimpleCov runs the target's test suite; active_record_doctor + database_consistency boot
       the target app + connect to a live DB). Needs a sandboxing/opt-in design; can't honor the
       static pipeline's determinism/pinning contracts as-is. **PROPOSAL DRAFTED + adversarially
-      reviewed (Fable), decision-gated — `docs/execution-tier-proposal.md`.** Design shape:
+      reviewed (Fable) — `docs/execution-tier-proposal.md`.** Design shape:
       container-only sandbox (target cloned *inside* the container, no host mount; two-phase
       network so `bundle install` egress is fenced), throwaway DB from committed schema, synthetic
       env secrets (real `master.key` impossible → funnel failures reported, never swallowed),
