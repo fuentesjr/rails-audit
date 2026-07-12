@@ -109,6 +109,12 @@ The static pipeline runs four tools, all pinned:
   unindexed foreign keys, mismatched FK types, and tables without a primary key — all
   without booting the app or touching a database.
 
+`rails-audit` is an auditor, not a design coach. Reek and the custom cops surface
+complexity and design findings, but the tool doesn't explain design principles or track
+design quality over time. For opinionated, Sandi-Metz-style design pressure with per-rule
+explanations and a compliance scorecard, see
+[metz-scan](https://github.com/fuentesjr/metz-scan).
+
 ## Documentation
 
 - [`docs/DESIGN.md`](docs/DESIGN.md) — the canonical design document (findings schema,
