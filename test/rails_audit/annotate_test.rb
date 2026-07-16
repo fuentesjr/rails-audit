@@ -9,7 +9,7 @@ class AnnotateTest < Minitest::Test
   HEADERS = [
     "Top 5 issues to fix first",
     "Systemic patterns",
-    "Refactoring suggestions (thoughtbot style)",
+    "Refactoring suggestions (domain modeling; thin operations only when justified)",
     "Impact ranking critique"
   ].freeze
 

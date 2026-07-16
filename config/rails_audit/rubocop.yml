@@ -47,6 +47,3 @@ RailsAudit/FatModel:
 RailsAudit/FatControllerAction:
   Enabled: true
   MaxLines: 15
-
-RailsAudit/ServiceObject:
-  Enabled: true

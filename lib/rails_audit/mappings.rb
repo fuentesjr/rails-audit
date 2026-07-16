@@ -50,7 +50,6 @@ module RailsAudit
       "Rails/ThreeStateBooleanColumn" => { impact: "medium", category: "rails" }.freeze,
       "RailsAudit/FatModel" => { impact: "medium", category: "complexity" }.freeze,
       "RailsAudit/FatControllerAction" => { impact: "medium", category: "complexity" }.freeze,
-      "RailsAudit/ServiceObject" => { impact: "low", category: "design" }.freeze
     }.freeze
 
     REEK_COMPLEXITY_RULES = %w[

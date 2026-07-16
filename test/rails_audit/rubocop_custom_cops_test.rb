@@ -20,20 +20,22 @@ class RubocopCustomCopsTest < Minitest::Test
       assert_includes offenses_by_file.fetch("fat_record.rb"), "RailsAudit/FatModel"
       assert_includes offenses_by_file.fetch("reports_controller.rb"),
                       "RailsAudit/FatControllerAction"
-      assert_includes offenses_by_file.fetch("report_generator.rb"), "RailsAudit/ServiceObject"
 
       refute_includes offenses_by_file.fetch("slim_record.rb"), "RailsAudit/FatModel"
       refute_includes offenses_by_file.fetch("health_controller.rb"),
                       "RailsAudit/FatControllerAction"
-      refute_includes offenses_by_file.fetch("formatter.rb"), "RailsAudit/ServiceObject"
+      # Presence of app/services/** is not an audit finding (application-operations R7 removed).
+      service_offenses = offenses_by_file.fetch("report_generator.rb", [])
+      refute_includes service_offenses, "RailsAudit/ServiceObject"
 
       findings = RailsAudit::Normalizer.rubocop(result.fetch(:payload), target_root: TARGET)
       fat_model = findings.find { |finding| finding.rule == "RailsAudit/FatModel" }
-      service_object = findings.find { |finding| finding.rule == "RailsAudit/ServiceObject" }
+      fat_action = findings.find { |finding| finding.rule == "RailsAudit/FatControllerAction" }
 
       assert_equal ["medium", "complexity"], [fat_model.impact, fat_model.category]
-      assert_equal ["low", "design"], [service_object.impact, service_object.category]
+      assert_equal ["medium", "complexity"], [fat_action.impact, fat_action.category]
       assert_equal "app/models/fat_record.rb", fat_model.location.fetch(:file)
+      assert_nil findings.find { |finding| finding.rule == "RailsAudit/ServiceObject" }
     end
   end
 

@@ -20,19 +20,19 @@ their output into one findings schema, and renders an impact-ranked Markdown rep
 deterministically, with the CLI owning all analysis configuration rather than trusting
 whatever the target repo happens to ship.
 
-It is a CLI-shaped replacement for the **detection layer** of thoughtbot's
-`rails-audit-thoughtbot` Claude Code skill. Per that skill's published instructions
-(`SKILL.md`, github.com/thoughtbot/rails-audit-thoughtbot), it audits Rails apps against
-mechanical heuristics — fat models, fat controllers, service-object smells, security
-scans, style/complexity metrics — then layers prioritization and refactoring advice on
-top via the LLM. **The premise this project is built on is an estimate, not a measured
-figure**: the orchestrator's pre-spike read of that skill is that roughly ~70-80% of the
-audit is mechanizable via existing static-analysis tools, leaving judgment
-(prioritization, refactoring advice) as the remaining LLM-driven layer. This project
-builds the mechanizable half as a standalone,
-scriptable, CI-friendly tool with an optional, separate LLM annotation pass over its output
-— the skill (or any other LLM-driven workflow) can consume `rails-audit`'s findings JSON
-instead of re-deriving detection logic itself each time.
+**Product identity.** rails-audit is an **auditor** (security, correctness, Rails idiom,
+schema, complexity, and selected design *size* signals) — not a design coach and not a
+parity implementation of any external skill. Optional LLM annotation adds prioritization
+judgment on top of deterministic findings; it is never part of the audit contract.
+
+**Genesis (not authority).** Early exploration was inspired by thoughtbot's
+`rails-audit-thoughtbot` skill and the estimate that much of a Rails audit is
+mechanizable. That skill is **origin context only** — not a feature checklist, severity
+model, or design philosophy to match. Design rules for application operations and
+concerns live in [`docs/application-operations.md`](application-operations.md) (full
+standard in this repo; an independent copy may exist in metz-scan — no hard dependency).
+Opinionated Sandi-Metz-style design pressure is a separate product
+([metz-scan](https://github.com/fuentesjr/metz-scan)), optional to pair with this auditor.
 
 The spike (`rails-audit-spike/`) was a throwaway thin slice — brakeman/rubocop/reek against
 Lobsters, normalize, render, one `claude -p` annotation pass — built specifically to surface
@@ -451,7 +451,7 @@ count. The spike's v1 report (`RAILS_AUDIT_REPORT.md`) groups by category first,
 second within category, with a fixed `CATEGORY_ORDER` that happens to put `security`
 first. This "worked" on Lobsters only because brakeman was the sole source of
 critical/high findings in this run — it is not structurally guaranteed: a future tool
-(custom thoughtbot cops, active_record_doctor) could produce a critical/high finding in
+(custom in-repo cops, active_record_doctor) could produce a critical/high finding in
 `design` or `rails`, and it would render *after* five other category sections under v1's
 layout. **Proposed — not spiked**: lead the report with a single "Critical & High"
 section spanning all categories, sorted by impact then category. This is the **only**
@@ -545,7 +545,8 @@ styling).
   built-in timeout + automatic retry + structured output is meant to catch and surface
   (`implementation-notes.md` phase 4).
 - **Prompt asks for four fixed Markdown headers** (Top 5 issues to fix first; Systemic
-  patterns; Refactoring suggestions (thoughtbot style); Severity ranking critique) — this
+  patterns; Refactoring suggestions (domain modeling; thin operations only when justified);
+  Impact ranking critique) — this
   worked first try against both the fixture and the real 13k-finding dataset; no
   multi-call iteration was needed in either case (`implementation-notes-llm.md`: "One call
   is fine... not evidence it always will"). The fourth header's wording — "Severity
@@ -604,21 +605,17 @@ CI gate or pre-commit hook without an explicit opt-in and a generous timeout bud
   it would fail outright on the project's own validation targets (Mastodon/Discourse don't
   `eager_load!` without secrets/`master.key`/Redis/Postgres). Scoped and reviewed as its own
   decision (Phase 8), never folded into the static pipeline.
-- **Custom thoughtbot cops** — fat model (>200 lines / >15 public methods), fat
-  controller actions (>15 lines), and service-object-in-`app/services`-with-`.call`
-  detection, per thoughtbot's published skill instructions (`SKILL.md`,
-  github.com/thoughtbot/rails-audit-thoughtbot). This is a **proposed architecture, not
-  spiked** — the spike explicitly excluded custom cops from scope (`SPIKE_PLAN.md`, "Out of
-  scope"). Building it means designing and testing new cops from scratch; nothing in the
-  spike de-risks that work. **Packaging decision (Phase 6):** the design originally called for
-  a *separate* extension gem; we instead ship the cops **in-repo** under `RuboCop::Cop::RailsAudit::*`
-  (`lib/rails_audit/cops/`), loaded into the pinned rubocop via the CLI-owned config, since a
-  standalone gem is premature for a single consumer (YAGNI). Extract to a separate gem only if an
-  external consumer ever needs the cops independently. Loading these custom cops into the
-  subprocess rubocop is itself a silent-false-negative risk (like the schema-loader/`chdir` and
-  `Exclude`-relative-path issues already found): if the require path doesn't resolve, the cops
-  never register and produce zero offenses with no signal — so loading must be verified to
-  actually fire through the real runner, not merely configured.
+- **In-repo custom cops (`RuboCop::Cop::RailsAudit::*`)** — fat model (>200 lines / >15
+  public methods) and fat controller actions (>15 lines) as **size** signals only.
+  Packaging: in-repo under `lib/rails_audit/cops/`, loaded via CLI-owned config (not a
+  separate gem; YAGNI until a second consumer). Loading into the subprocess rubocop is a
+  silent-false-negative risk — verify cops actually fire through the real runner.
+  **Application-operations policy** ([`docs/application-operations.md`](application-operations.md)):
+  service-object *presence* detection was removed. Legitimate operations are rare thin
+  boundary orchestration; **shape abuse** is defined in that standard. Mechanical shape
+  cops ship in the separate metz-scan product when used; rails-audit does not depend on
+  metz-scan. Do not restore thoughtbot-style "service object detected" as a success
+  criterion.
 - **RubyCritic** — also explicitly out of the spike's scope (`SPIKE_PLAN.md`). Brief,
   unspiked assessment only: it wraps reek/flog/flay into an HTML dashboard; if added, it
   would introduce yet another un-owned scoring scheme (flog's complexity score) needing
@@ -762,11 +759,11 @@ regression cases, and the verified exit-code/version tables.
    (§8), so they move to Phase 8's execution tier, not here. Caution: the Phase-7 `Exclude` list
    drops `db/schema.rb` from *linting*, which is correct — the schema loader reads it as data, not
    as an inspected file — but `db/migrate/**` must stay lintable or the migration cops go dark.
-6. **Custom thoughtbot cops (in-repo, not a separate gem — see §8).** New cop development
-   (fat model/controller, service-object detection) under `RuboCop::Cop::RailsAudit::*`, loaded
-   into the pinned rubocop via the CLI-owned config and mapped in §5. Genuinely new work, not
-   de-risked by the spike. Loading through the subprocess runner must be verified to actually
-   fire (silent-false-negative risk).
+6. **Custom in-repo cops (not a separate gem — see §8).** Fat model/controller size signals
+   under `RuboCop::Cop::RailsAudit::*`, loaded into the pinned rubocop via the CLI-owned
+   config and mapped in §5. Loading through the subprocess runner must fire for real
+   (silent-false-negative risk). Operation/service shape abuse lives in metz-scan per
+   [`application-operations.md`](application-operations.md).
 7. **Scale and config-landmine validation — DONE via micro-spikes, follow-ups remain.**
    Both were run: micro-spike A (Mastodon, missing-gem `.rubocop.yml`) and micro-spike B
    (Discourse, 10,679 files) — see §3, §4, §9. Remaining work this phase should still

@@ -57,8 +57,6 @@ class MappingsTest < Minitest::Test
                    impact: "medium", category: "complexity"
     assert_mapping "rubocop", "RailsAudit/FatControllerAction",
                    impact: "medium", category: "complexity"
-    assert_mapping "rubocop", "RailsAudit/ServiceObject",
-                   impact: "low", category: "design"
   end
 
   def test_reek_uses_rule_family_defaults
