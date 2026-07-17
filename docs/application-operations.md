@@ -50,6 +50,34 @@ An application operation is a **thin command at an application boundary**. It is
 
 Any of: `app/operations/`, `app/services/` (legacy), or domain namespaces (`Checkout`, `Billing::RenewSubscription`). Path alone never legitimizes the class.
 
+### Controller vs application operation
+
+Rails controllers (and jobs, mailers, rake tasks) **already orchestrate** at an
+application edge. Their job is adapter in → invoke the use case → adapter out.
+
+A separate operation class is **not** a superior general form of that
+orchestration. If the only caller is one controller action and the sequence is
+short, keep it in the controller (or a private method). Extracting `Checkout`
+only to “keep the controller skinny” is ceremony — usually I7 (presence as
+architecture).
+
+**Extract an operation when the product use case is the thing being reused**, not
+when a single HTTP action feels busy:
+
+- same flow from controller **and** job **and**/or webhook **and**/or CLI
+- you need a non-HTTP unit of work / result contract for that use case
+- multi-boundary work would otherwise be copy-pasted across adapters
+
+| Edge | Owns |
+|------|------|
+| Controller / job / webhook | Adapter concerns (params, authz, status codes, queue, retries) |
+| Application operation | Shared use-case sequence **only when** multiple edges (or a real non-HTTP API) need it |
+| Domain model / PORO | Invariants and rules |
+
+Controllers orchestrate **HTTP**. Legitimate operations orchestrate a **product
+use case** that may outlive any one adapter. Same shape of code; different
+reason to exist.
+
 ---
 
 ## 2. Illegitimate (disallowed shapes)
@@ -117,12 +145,16 @@ Concerns organize **roles**, not workflows.
 In order:
 
 1. **Method on the object that owns the data/invariant** (instance API when natural).
-2. **PORO domain concept** with a clear noun and interface (not a free `run` script).
-3. **Form / query / policy** when that is the real shape.
-4. **Thin application operation** only when L1–L6 hold.
-5. **Concern** only when C1–C4 hold.
+2. **Sequence in the single boundary object that calls it** (controller action, job
+   `#perform`, etc.) — including a private method if that keeps the edge clear.
+3. **PORO domain concept** with a clear noun and interface (not a free `run` script).
+4. **Form / query / policy** when that is the real shape.
+5. **Thin application operation** only when L1–L6 hold **and** more than one edge
+   (or a deliberate non-HTTP API) needs the same use case.
+6. **Concern** only when C1–C4 hold.
 
-Do **not** extract "because the controller is fat" without asking what concept is missing.
+Do **not** extract "because the controller is fat" without asking what concept is
+missing — and without asking whether a second edge actually needs the same sequence.
 
 ---
 
@@ -222,6 +254,8 @@ For a proposed operation class:
 - [ ] Single public entry (L4)
 - [ ] Use-case name (L5)
 - [ ] Body is orchestration-thin (L6)
+- [ ] Not only “controller looked fat” — multi-edge reuse or a deliberate non-HTTP
+      API for this use case (else prefer the controller / job)
 - [ ] Not I1–I7
 - [ ] Concern alternative rejected for a reason other than "services are bad" (C1–C4 if using a concern)
 
