@@ -631,6 +631,20 @@ CI gate or pre-commit hook without an explicit opt-in and a generous timeout bud
   pulls in) inside the audit pipeline — a materially different security/sandboxing
   posture than everything else in this roster, and should be scoped and reviewed as its
   own decision, not folded in as "just another tool."
+- **rubocop-shopify (Shopify's style-guide config)** — **Rejected as a style baseline
+  (2026-07-19, config-verified).** The rubocop pass keeps RuboCop's default cop set — the
+  encoded community style guide — because the CLI-owned config (§4) does not set
+  `DisabledByDefault`. Shopify's published `rubocop.yml` disables every Metrics cop, most
+  Lint cops, and all Security cops, and loads no rails/performance plugins. Adopting it
+  would silently drop the complexity and correctness categories (§5) — exactly the
+  silent-false-negative class this tool exists to surface. Style findings already rank
+  `info` (§5), so community-guide nit volume is a rendering problem, not a baseline
+  problem. If style findings against Shopify-convention targets ever cause real
+  confusion, escalate in two steps. First: a report warning when the target Gemfile
+  carries a house style-config gem (surface, don't swallow). Second: a user-invoked
+  `--style-baseline` flag scoped strictly to Style/Layout departments. Never infer a
+  baseline switch from target contents; that would reintroduce target-controlled
+  suppression (§4).
 
 ## 9. Open questions & de-risking spikes
 
