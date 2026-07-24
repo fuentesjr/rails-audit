@@ -37,7 +37,12 @@ module RailsAudit
       "Metrics" => { impact: "medium", category: "complexity" }.freeze,
       "Style" => { impact: "info", category: "style" }.freeze,
       "Layout" => { impact: "info", category: "style" }.freeze,
-      "Naming" => { impact: "info", category: "style" }.freeze
+      "Naming" => { impact: "info", category: "style" }.freeze,
+      # rubocop-minitest is mostly assertion-style guidance (Minitest/AssertNil, etc.) — info/
+      # style is the right default. The genuine correctness-shaped cops (dead assertions,
+      # `ensure` skipped under `skip`) are overridden individually below so they don't fall
+      # into this style bucket, per DESIGN.md §8's adoption condition.
+      "Minitest" => { impact: "info", category: "style" }.freeze
     }.freeze
     RUBOCOP_DEFAULT = { impact: "low", category: "style" }.freeze
     RUBOCOP_RULES = {
@@ -50,6 +55,9 @@ module RailsAudit
       "Rails/ThreeStateBooleanColumn" => { impact: "medium", category: "rails" }.freeze,
       "RailsAudit/FatModel" => { impact: "medium", category: "complexity" }.freeze,
       "RailsAudit/FatControllerAction" => { impact: "medium", category: "complexity" }.freeze,
+      "Minitest/UnreachableAssertion" => { impact: "high", category: "correctness" }.freeze,
+      "Minitest/SkipEnsure" => { impact: "medium", category: "correctness" }.freeze,
+      "Minitest/UselessAssertion" => { impact: "high", category: "correctness" }.freeze,
     }.freeze
 
     REEK_COMPLEXITY_RULES = %w[

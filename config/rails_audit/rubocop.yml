@@ -1,6 +1,7 @@
 plugins:
   - rubocop-rails
   - rubocop-performance
+  - rubocop-minitest
 
 AllCops:
   NewCops: disable
@@ -37,6 +38,22 @@ Rails/MigrationClassName:
   Enabled: true
 
 Rails/ThreeStateBooleanColumn:
+  Enabled: true
+
+# rubocop-minitest 0.40.0 ships only 18 of its 56 cops as Enabled: true (those fire
+# without any override here — NewCops: disable only affects `pending` cops); 35 are
+# `pending` and would stay dark otherwise — the same silent-false-negative shape as the
+# Rails schema/migration cops above. The pending set was triaged (DESIGN.md §8): the
+# three correctness-shaped cops below are enabled explicitly rather than letting "no
+# findings" read as "tests are fine"; the rest stay dark as style-tier or unevaluated
+# (deferred list in the §8 adoption record).
+Minitest/UnreachableAssertion:
+  Enabled: true
+
+Minitest/SkipEnsure:
+  Enabled: true
+
+Minitest/UselessAssertion:
   Enabled: true
 
 RailsAudit/FatModel:

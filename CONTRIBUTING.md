@@ -43,7 +43,7 @@ The analysis tools are pinned to **exact** versions in the gemspec (not pessimis
 
 ```
 brakeman 8.0.5, reek 6.5.0, rubocop 1.88.2,
-rubocop-performance 1.26.1, rubocop-rails 2.35.5
+rubocop-minitest 0.40.0, rubocop-performance 1.26.1, rubocop-rails 2.35.5
 ```
 
 This is deliberate. The determinism contract (see `docs/DESIGN.md` §4) scopes the

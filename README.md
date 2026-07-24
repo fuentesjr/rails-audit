@@ -101,8 +101,9 @@ rails-audit execution-audit PATH/TO/RAILS/APP --i-understand-untrusted-code-runs
 The static pipeline runs four tools, all pinned:
 
 - **brakeman** — security vulnerabilities.
-- **rubocop** + **rubocop-rails** + **rubocop-performance** — style, correctness, Rails
-  idiom, performance, and the static schema/migration cops.
+- **rubocop** + **rubocop-rails** + **rubocop-performance** + **rubocop-minitest** —
+  style, correctness, Rails idiom, performance, Minitest-idiom cops, and the static
+  schema/migration cops.
 - **reek** — code smells / complexity and design issues.
 - **In-repo additions** — custom cops (fat model, fat controller action as size signals)
   and a static schema analyzer that reads `db/schema.rb` for issues like unindexed foreign

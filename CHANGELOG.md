@@ -10,6 +10,13 @@ All notable changes to this project are documented here. The format is loosely b
 - Configurable `--max-findings` cap on the `audit` command (default 500,000). Over the
   cap the run fails loudly and overridably rather than straining memory; findings are
   never silently dropped or truncated.
+- **rubocop-minitest 0.40.0** added to the pinned toolchain, loaded via the CLI-owned
+  rubocop config alongside rubocop-rails/rubocop-performance. Three genuinely
+  correctness-shaped pending cops (`Minitest/UnreachableAssertion`,
+  `Minitest/SkipEnsure`, `Minitest/UselessAssertion`) are explicitly enabled, mirroring
+  the Rails schema/migration cops. New: when a target has no `test/**/*_test.rb` files, the report surfaces a
+  warning that rubocop-minitest cops had nothing to scan — an RSpec-shop (or any
+  non-Minitest) target reads as "no signal," not "tests are clean."
 
 ### Changed
 - The four static runners (brakeman, rubocop, reek, schema analyzer) now run concurrently.

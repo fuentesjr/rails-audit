@@ -18,6 +18,16 @@ module RailsAudit
       "Rails/ThreeStateBooleanColumn) and Schema/* checks were inactive; migration cops on " \
       "db/migrate are unaffected."
 
+    # rubocop-minitest cops only have files to inspect on a target that actually uses
+    # Minitest-style test files; on an RSpec (or other-framework) shop they silently find
+    # nothing, which is indistinguishable from "tests are clean" — the same false-negative
+    # shape as the missing-schema.rb case above. Detection is a simple static glob, matching
+    # the Include patterns rubocop-minitest itself ships (config/rails_audit/rubocop.yml).
+    MINITEST_MISSING_WARNING =
+      "No Minitest-style test files found (no test/**/*_test.rb) — rubocop-minitest cops had " \
+      "nothing to scan. This may mean the target uses RSpec or another framework, not that " \
+      "its tests are clean."
+
     USAGE = <<~USAGE
       Usage: rails-audit audit TARGET [options]
              rails-audit annotate FINDINGS_JSON [--output PATH]
@@ -215,9 +225,13 @@ module RailsAudit
     end
 
     def warnings_for(target)
-      return [] if File.exist?(File.join(target, "db", "schema.rb"))
-
-      [SCHEMA_MISSING_WARNING]
+      warnings = []
+      warnings << SCHEMA_MISSING_WARNING unless File.exist?(File.join(target, "db", "schema.rb"))
+      # base: keeps the target path literal — a directory name containing glob
+      # metacharacters (e.g. "app[v2]") must not silently empty the match and
+      # produce a false "no Minitest tests" warning.
+      warnings << MINITEST_MISSING_WARNING if Dir.glob(File.join("test", "**", "*_test.rb"), base: target).empty?
+      warnings
     end
 
     def write_outputs(output_dir, document)

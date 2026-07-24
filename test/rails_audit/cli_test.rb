@@ -8,7 +8,9 @@ require "test_helper"
 class CLITest < Minitest::Test
   TARGET_APP = File.expand_path("../fixtures/target_app", __dir__)
   SCHEMA_APP = File.expand_path("../fixtures/schema_app", __dir__)
+  RSPEC_APP = File.expand_path("../fixtures/rspec_style_app", __dir__)
   SCHEMA_MISSING_WARNING = RailsAudit::CLI::SCHEMA_MISSING_WARNING
+  MINITEST_MISSING_WARNING = RailsAudit::CLI::MINITEST_MISSING_WARNING
 
   def test_default_max_findings
     assert_equal 500_000, RailsAudit::CLI::DEFAULT_MAX_FINDINGS
@@ -186,7 +188,7 @@ class CLITest < Minitest::Test
     end
   end
 
-  def test_audit_against_a_target_without_schema_rb_surfaces_a_warning
+  def test_audit_against_a_target_missing_schema_rb_and_test_files_surfaces_both_warnings
     Dir.mktmpdir do |output_dir|
       stdout, stderr = StringIO.new, StringIO.new
       status = RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
@@ -196,11 +198,36 @@ class CLITest < Minitest::Test
       assert_equal 0, status, "expected success, stderr: #{stderr.string}"
 
       document = JSON.parse(File.read(File.join(output_dir, "findings.json")))
-      assert_equal [SCHEMA_MISSING_WARNING], document.fetch("warnings")
+      # TARGET_APP ships neither db/schema.rb nor test/**/*_test.rb, so both
+      # skipped-check warnings fire — a reader should never see "no findings" and
+      # assume either check actually ran.
+      assert_equal [SCHEMA_MISSING_WARNING, MINITEST_MISSING_WARNING], document.fetch("warnings")
       assert_includes SCHEMA_MISSING_WARNING, "Schema/*"
+      assert_includes MINITEST_MISSING_WARNING, "test/**/*_test.rb"
 
       report = File.read(File.join(output_dir, "RAILS_AUDIT_REPORT.md"))
-      assert_includes report, "## Warnings\n- #{SCHEMA_MISSING_WARNING}"
+      assert_includes report,
+                       "## Warnings\n- #{SCHEMA_MISSING_WARNING}\n- #{MINITEST_MISSING_WARNING}"
+    end
+  end
+
+  def test_audit_against_an_rspec_only_target_surfaces_a_minitest_warning
+    Dir.mktmpdir do |output_dir|
+      stdout, stderr = StringIO.new, StringIO.new
+      status = RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
+        ["audit", RSPEC_APP, "--output-dir", output_dir]
+      )
+
+      assert_equal 0, status, "expected success, stderr: #{stderr.string}"
+
+      document = JSON.parse(File.read(File.join(output_dir, "findings.json")))
+      # RSPEC_APP ships db/schema.rb and a spec/*_spec.rb file but no test/**/*_test.rb —
+      # the schema warning must stay quiet while the Minitest one fires on its own, so an
+      # RSpec shop's clean rubocop-minitest pass reads as "no signal", not "tests are clean".
+      assert_equal [MINITEST_MISSING_WARNING], document.fetch("warnings")
+
+      report = File.read(File.join(output_dir, "RAILS_AUDIT_REPORT.md"))
+      assert_includes report, "## Warnings\n- #{MINITEST_MISSING_WARNING}"
     end
   end
 

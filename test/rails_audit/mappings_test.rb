@@ -52,6 +52,13 @@ class MappingsTest < Minitest::Test
     end
   end
 
+  def test_minitest_cops_default_to_style_with_correctness_overrides
+    assert_mapping "rubocop", "Minitest/AssertEqual", impact: "info", category: "style"
+    assert_mapping "rubocop", "Minitest/UnreachableAssertion", impact: "high", category: "correctness"
+    assert_mapping "rubocop", "Minitest/SkipEnsure", impact: "medium", category: "correctness"
+    assert_mapping "rubocop", "Minitest/UselessAssertion", impact: "high", category: "correctness"
+  end
+
   def test_custom_cops_override_department_default
     assert_mapping "rubocop", "RailsAudit/FatModel",
                    impact: "medium", category: "complexity"

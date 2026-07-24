@@ -47,6 +47,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "brakeman", "8.0.5"
   spec.add_dependency "reek", "6.5.0"
   spec.add_dependency "rubocop", "1.88.2"
+  spec.add_dependency "rubocop-minitest", "0.40.0"
   spec.add_dependency "rubocop-performance", "1.26.1"
   spec.add_dependency "rubocop-rails", "2.35.5"
 

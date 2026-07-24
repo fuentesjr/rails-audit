@@ -616,6 +616,70 @@ CI gate or pre-commit hook without an explicit opt-in and a generous timeout bud
   cops ship in the separate metz-scan product when used; rails-audit does not depend on
   metz-scan. Do not restore thoughtbot-style "service object detected" as a success
   criterion.
+- **rubocop-minitest** — **Adopted (2026-07-23), pinned at 0.40.0.** Same execution model as
+  rubocop-rails/rubocop-performance already in the roster: a pinned RuboCop extension
+  loaded via the CLI-owned config (§4), static-source-only, JSON output, no new
+  trust/execution posture; test dirs are already in scope since the CLI-owned config's
+  `AllCops: Exclude` list deliberately omits them (verified against
+  `config/rails_audit/rubocop.yml`). Distinct from the rubocop-shopify rejection below:
+  shopify was rejected because its config *disables* cops (silent false negatives);
+  rubocop-minitest only *adds* cops, including genuine correctness checks
+  (`Minitest/UnreachableAssertion`, `Minitest/SkipEnsure`, `Minitest/AssertRaisesWithBlock`)
+  alongside style-tier ones — and per §5, style-tier findings already rank `info`, so nit
+  volume is a rendering problem, not a baseline problem. **Adoption condition
+  (load-bearing):** on a target with no Minitest test files, the plugin silently finds
+  nothing — indistinguishable from "tests are clean," exactly the silent-false-negative
+  class this tool exists to surface. Adoption must pair the plugin with a report warning
+  when the target has no Minitest-style test files (e.g. no `test/**/*_test.rb`),
+  mirroring how skipped schema cops are surfaced as warnings; rubocop-rspec is the sibling
+  gap for RSpec-shop targets, a separate unassessed candidate, not proposed here. Known
+  cost: the per-tool-version impact/category and exit-code tables (§5) must be extended to
+  map the plugin's departments — small but nonzero, part of the adoption work.
+
+  **Adoption record (2026-07-23).** Pinned `rubocop-minitest` 0.40.0 (latest release at
+  adoption time; requires rubocop >= 1.75.0, satisfied by the pinned 1.88.2) in the gemspec
+  and loaded it via `plugins:` in `config/rails_audit/rubocop.yml`, alongside
+  rubocop-rails/rubocop-performance. `AllCops: NewCops: disable` does **not** silently
+  disable the whole department, but it does keep most of it dark: of 0.40.0's 56 cops,
+  only 18 ship `Enabled: true` upstream (e.g. `Minitest/AssertNil`,
+  `Minitest/AssertEqual`) and fire regardless of that setting; 35 are `pending` (dark
+  under `NewCops: disable` unless individually enabled) and 3 are `Enabled: false`
+  (counts from the gem's own `config/default.yml`, review-verified 2026-07-23).
+  Cop-firing was verified through the real runner (not just config inspection):
+  `test/rails_audit/rubocop_plugin_cops_test.rb` asserts that a `Minitest/AssertNil`
+  offense (enabled-by-default path) and one offense from each of the three explicitly
+  enabled pending cops surface from a fixture test file
+  (`test/fixtures/minitest_cop_app/test/sample_test.rb`) in `bundle exec rubocop`'s
+  actual JSON output — so a future version bump that renames a cop, or a config
+  regression that loses the pending-cop overrides, fails the suite instead of going
+  silently dark. Mappings (`lib/rails_audit/mappings.rb`)
+  add a `Minitest` department default of `info`/`style` (the enabled-by-default set is
+  assertion-style guidance) with per-rule `correctness` overrides for the three
+  genuinely correctness-shaped pending cops explicitly enabled in the CLI-owned config
+  (mirroring how the Rails schema/migration pending cops above are individually turned
+  on): `Minitest/UnreachableAssertion` (`high`), `Minitest/SkipEnsure` (`medium`), and
+  `Minitest/UselessAssertion` (`high` — assertions that always pass or always fail are
+  dead test signal, same class as unreachable ones). Pending-set triage (2026-07-23
+  review): the remaining correctness-adjacent pending cops —
+  `Minitest/UnspecifiedException`, `Minitest/AssertionInLifecycleHook`,
+  `Minitest/NoAssertions`, `Minitest/DuplicateTestRun`, `Minitest/ReturnInTestMethod` —
+  stay dark for now as an explicit deferral (false-positive/Safe profiles not
+  evaluated), not a silent drop; revisit at the next rubocop-minitest version bump.
+  Correction to this entry's own rationale text above: no
+  `Minitest/AssertRaisesWithBlock` cop exists in the gem's history (checked against its
+  CHANGELOG) — the closest real cop covering "assert_raises without a specified
+  exception" is `Minitest/UnspecifiedException`, in the deferred set above. The "known
+  cost" predicted above turned out to be zero: the §5 exit-code and tool-version tables
+  are keyed per tool (`"rubocop"`), not per department, so only the mappings needed
+  extending — nothing was silently dropped.
+  The load-bearing adoption condition shipped: `RailsAudit::CLI::MINITEST_MISSING_WARNING`
+  fires when a target has no `test/**/*_test.rb` files (simple static glob in
+  `lib/rails_audit/cli.rb#warnings_for`, alongside the existing schema-missing warning),
+  verified end-to-end against an RSpec-shop fixture
+  (`test/fixtures/rspec_style_app`, `test/rails_audit/cli_test.rb`) that ships
+  `db/schema.rb` and a `spec/*_spec.rb` file but no Minitest test files — the schema
+  warning stays quiet while the Minitest one fires alone, confirming the two checks are
+  independent rather than conflated.
 - **RubyCritic** — also explicitly out of the spike's scope (`SPIKE_PLAN.md`). Brief,
   unspiked assessment only: it wraps reek/flog/flay into an HTML dashboard; if added, it
   would introduce yet another un-owned scoring scheme (flog's complexity score) needing
