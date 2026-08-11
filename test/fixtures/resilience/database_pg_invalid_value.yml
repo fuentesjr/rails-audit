@@ -1,0 +1,5 @@
+production:
+  adapter: postgresql
+  connect_timeout: 5
+  variables:
+    statement_timeout: eventually

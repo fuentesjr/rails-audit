@@ -1,0 +1,5 @@
+production:
+  adapter: postgis
+  connect_timeout: 5
+  variables:
+    statement_timeout: 0

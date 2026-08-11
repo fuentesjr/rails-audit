@@ -1,0 +1,4 @@
+<% if ENV["DATABASE_URL"] %>
+production:
+  adapter: postgresql
+<% end %>

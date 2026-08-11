@@ -2,7 +2,9 @@
 
 module RailsAudit
   module Report
-    CATEGORY_ORDER = %w[security correctness rails performance complexity design style].freeze
+    CATEGORY_ORDER = %w[
+      security correctness resilience rails performance complexity design style
+    ].freeze
     IMPACT_ORDER = %w[critical high medium low info].freeze
     INDIVIDUAL_IMPACTS = %w[critical high].freeze
     INDIVIDUAL_CAP = 25

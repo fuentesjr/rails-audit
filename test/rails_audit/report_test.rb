@@ -95,6 +95,22 @@ class ReportTest < Minitest::Test
     refute_match(/^- `/m, section(report, "Security"))
   end
 
+  def test_resilience_renders_after_correctness_and_high_findings_lead
+    findings = [
+      finding(category: "correctness", impact: "medium", rule: "Lint/Foo", file: "a.rb", start_line: 1),
+      finding(category: "resilience", impact: "high", rule: "Resilience/MissingRequestTimeout",
+              file: "Gemfile.lock", start_line: 1),
+      finding(category: "rails", impact: "low", rule: "Rails/Foo", file: "b.rb", start_line: 1)
+    ]
+    report = RailsAudit::Report.render(document_with(findings))
+
+    assert_operator report.index("## Correctness"), :<, report.index("## Resilience")
+    assert_operator report.index("## Resilience"), :<, report.index("## Rails")
+    assert_includes section(report, "Critical & High"), "**Resilience/MissingRequestTimeout**"
+    assert_includes section(report, "Resilience"),
+                    "Critical/High: 1 — listed individually in the Critical & High section above."
+  end
+
   def test_warnings_section_renders_after_tools_when_present
     document = document_with([], warnings: ["db/schema.rb not found — schema cops were inactive."])
     report = RailsAudit::Report.render(document)

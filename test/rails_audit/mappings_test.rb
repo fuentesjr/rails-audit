@@ -6,9 +6,28 @@ class MappingsTest < Minitest::Test
   def test_tables_are_scoped_to_the_pinned_tool_versions
     assert_equal(
       { brakeman: "8.0.5", rubocop: "1.88.2", reek: "6.5.0",
-        schema: RailsAudit::VERSION },
+        schema: RailsAudit::VERSION, resilience: RailsAudit::VERSION },
       RailsAudit::Mappings::TOOL_VERSIONS
     )
+  end
+
+  def test_resilience_rules_and_threshold_are_explicit_versioned_data
+    expected = {
+      "Resilience/MissingStatementTimeout" => { impact: "high", confidence: "high" },
+      "Resilience/StatementTimeoutTooHigh" => { impact: "medium", confidence: "high" },
+      "Resilience/MissingConnectTimeout" => { impact: "medium", confidence: "high" },
+      "Resilience/UnresolvableTimeoutValue" => { impact: "info", confidence: "low" },
+      "Resilience/MissingRequestTimeout" => { impact: "high", confidence: "high" }
+    }
+
+    assert_equal({ statement_timeout_max_seconds: 30 }, RailsAudit::Mappings::RESILIENCE_THRESHOLDS)
+    assert_equal expected.keys.sort, RailsAudit::Mappings::RESILIENCE_RULES.keys.sort
+    expected.each do |rule, mapping|
+      assert_mapping "resilience", rule, impact: mapping.fetch(:impact), category: "resilience"
+      assert_equal mapping.fetch(:confidence), RailsAudit::Mappings.confidence(
+        tool: "resilience", rule: rule
+      )
+    end
   end
 
   def test_brakeman_impact_and_confidence_are_independent

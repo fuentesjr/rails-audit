@@ -6,7 +6,8 @@ module RailsAudit
       brakeman: "8.0.5",
       rubocop: "1.88.2",
       reek: "6.5.0",
-      schema: RailsAudit::VERSION
+      schema: RailsAudit::VERSION,
+      resilience: RailsAudit::VERSION
     }.freeze
 
     BRAKEMAN_IMPACT = {
@@ -92,6 +93,24 @@ module RailsAudit
       "Schema/ExtraneousIndex" => { impact: "low", category: "performance" }.freeze,
       "Schema/ShortPrimaryKeyType" => { impact: "medium", category: "rails" }.freeze
     }.freeze
+    RESILIENCE_RULES = {
+      "Resilience/MissingStatementTimeout" => {
+        impact: "high", category: "resilience", confidence: "high"
+      }.freeze,
+      "Resilience/StatementTimeoutTooHigh" => {
+        impact: "medium", category: "resilience", confidence: "high"
+      }.freeze,
+      "Resilience/MissingConnectTimeout" => {
+        impact: "medium", category: "resilience", confidence: "high"
+      }.freeze,
+      "Resilience/UnresolvableTimeoutValue" => {
+        impact: "info", category: "resilience", confidence: "low"
+      }.freeze,
+      "Resilience/MissingRequestTimeout" => {
+        impact: "high", category: "resilience", confidence: "high"
+      }.freeze
+    }.freeze
+    RESILIENCE_THRESHOLDS = { statement_timeout_max_seconds: 30 }.freeze
     ACTIVE_RECORD_DOCTOR_RULES = {
       "missing_presence_validation" => { impact: "medium", category: "rails", confidence: "medium" }.freeze,
       "missing_foreign_keys" => { impact: "high", category: "rails", confidence: "high" }.freeze,
@@ -118,6 +137,7 @@ module RailsAudit
       when "rubocop" then rubocop_mapping(rule).fetch(:impact)
       when "reek" then reek_mapping(rule).fetch(:impact)
       when "schema" then SCHEMA_RULES.fetch(rule).fetch(:impact)
+      when "resilience" then RESILIENCE_RULES.fetch(rule).fetch(:impact)
       when "active_record_doctor" then ACTIVE_RECORD_DOCTOR_RULES.fetch(rule).fetch(:impact)
       else "low"
       end
@@ -126,6 +146,7 @@ module RailsAudit
     def confidence(tool:, rule: nil, raw_confidence: nil)
       return BRAKEMAN_CONFIDENCE.fetch(raw_confidence, "medium") if tool == "brakeman"
       return raw_confidence if tool == "schema"
+      return RESILIENCE_RULES.fetch(rule).fetch(:confidence) if tool == "resilience"
       if tool == "active_record_doctor"
         return ACTIVE_RECORD_DOCTOR_RULES.fetch(rule).fetch(:confidence)
       end
@@ -139,6 +160,7 @@ module RailsAudit
       when "rubocop" then rubocop_mapping(rule).fetch(:category)
       when "reek" then reek_mapping(rule).fetch(:category)
       when "schema" then SCHEMA_RULES.fetch(rule).fetch(:category)
+      when "resilience" then RESILIENCE_RULES.fetch(rule).fetch(:category)
       when "active_record_doctor" then ACTIVE_RECORD_DOCTOR_RULES.fetch(rule).fetch(:category)
       else "style"
       end

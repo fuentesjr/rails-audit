@@ -1,0 +1,13 @@
+default: &default
+  adapter: postgresql
+  connect_timeout: 5
+  variables:
+    statement_timeout: 5s
+
+production:
+  primary:
+    <<: *default
+  replica:
+    adapter: postgis
+    variables:
+      statement_timeout: 45s

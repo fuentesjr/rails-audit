@@ -92,6 +92,38 @@ class NormalizerTest < Minitest::Test
     assert_equal expected_order, findings
   end
 
+  def test_normalizes_resilience_rows_using_each_rows_file_and_rule_mapping
+    payload = [
+      {
+        "rule" => "Resilience/MissingRequestTimeout",
+        "message" => "missing middleware",
+        "file" => "Gemfile.lock",
+        "line" => 1,
+        "discriminator" => "request-timeout",
+        "confidence" => "high"
+      },
+      {
+        "rule" => "Resilience/UnresolvableTimeoutValue",
+        "message" => "dynamic value",
+        "file" => "config/database.yml",
+        "line" => 9,
+        "discriminator" => "production.primary",
+        "confidence" => "low"
+      }
+    ]
+
+    request_timeout, database = RailsAudit::Normalizer.resilience(payload, target_root: TARGET_ROOT)
+
+    assert_equal "Gemfile.lock", request_timeout.location.fetch(:file)
+    assert_equal "high", request_timeout.impact
+    assert_equal "high", request_timeout.confidence
+    assert_equal "resilience", request_timeout.category
+    assert_equal "config/database.yml", database.location.fetch(:file)
+    assert_equal "info", database.impact
+    assert_equal "low", database.confidence
+    assert_equal "production.primary", database.discriminator
+  end
+
   def test_builds_serializable_top_level_document_without_runtime
     finding = RailsAudit::Normalizer.brakeman(
       { "warnings" => [raw_fixture("brakeman.json").fetch("warnings").first] },

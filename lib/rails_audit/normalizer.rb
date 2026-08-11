@@ -109,12 +109,39 @@ module RailsAudit
       end
     end
 
-    def normalize(brakeman:, rubocop:, reek:, schema:, target_root:)
+    def resilience(payload, target_root:)
+      payload.map do |raw_finding|
+        rule = raw_finding.fetch("rule")
+        line = raw_finding.fetch("line")
+
+        Finding.new(
+          native_fingerprint: nil,
+          tool: "resilience",
+          rule: rule,
+          category: Mappings.category(tool: "resilience", rule: rule),
+          impact: Mappings.impact(tool: "resilience", rule: rule),
+          confidence: Mappings.confidence(
+            tool: "resilience", rule: rule,
+            raw_confidence: raw_finding.fetch("confidence")
+          ),
+          message: raw_finding.fetch("message"),
+          discriminator: raw_finding.fetch("discriminator"),
+          location: location(
+            file: relative_path(raw_finding.fetch("file"), target_root),
+            start_line: line,
+            end_line: line
+          )
+        )
+      end
+    end
+
+    def normalize(brakeman:, rubocop:, reek:, schema:, target_root:, resilience: [])
       ensure_unique_ids(canonical_sort(
         self.brakeman(brakeman, target_root: target_root) +
           self.rubocop(rubocop, target_root: target_root) +
           self.reek(reek, target_root: target_root) +
-          self.schema(schema, target_root: target_root)
+          self.schema(schema, target_root: target_root) +
+          self.resilience(resilience, target_root: target_root)
       ))
     end
 

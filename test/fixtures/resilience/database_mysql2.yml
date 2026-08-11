@@ -1,0 +1,11 @@
+production:
+  primary:
+    adapter: mysql2
+    connect_timeout: 5
+    variables:
+      max_execution_time: 40000
+  replica:
+    adapter: trilogy
+    connect_timeout: 5
+    variables:
+      max_statement_time: 30.5

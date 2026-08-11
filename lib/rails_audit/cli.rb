@@ -177,10 +177,16 @@ module RailsAudit
         Thread.current.report_on_exception = false
         SchemaAnalyzer.analyze(target: target, output_path: File.join(raw_dir, "schema.json"))
       end
+      resilience_thread = Thread.new do
+        Thread.current.report_on_exception = false
+        ResilienceAnalyzer.analyze(
+          target: target, output_path: File.join(raw_dir, "resilience.json")
+        )
+      end
 
       threads = {
         brakeman: brakeman_thread, rubocop: rubocop_thread, reek: reek_thread,
-        schema: schema_thread
+        schema: schema_thread, resilience: resilience_thread
       }
       results = {}
       error = nil
@@ -197,12 +203,14 @@ module RailsAudit
       rubocop = results.fetch(:rubocop)
       reek = results.fetch(:reek)
       schema = results.fetch(:schema)
+      resilience = results.fetch(:resilience)
 
       findings = Normalizer.normalize(
         brakeman: brakeman.fetch(:payload),
         rubocop: rubocop.fetch(:payload),
         reek: reek.fetch(:payload),
         schema: schema.fetch(:payload),
+        resilience: resilience.fetch(:payload),
         target_root: target
       )
       if findings.size > max_findings
@@ -214,11 +222,11 @@ module RailsAudit
       document = Normalizer.document(
         target: target,
         toolchain: { ruby: RUBY_VERSION, bundler: Bundler::VERSION },
-        tools: [brakeman, rubocop, reek, schema].map do |tool|
+        tools: [brakeman, rubocop, reek, schema, resilience].map do |tool|
           tool.slice(:name, :version, :raw_count, :exit_code)
         end,
         findings: findings,
-        warnings: warnings_for(target)
+        warnings: warnings_for(target) + resilience.fetch(:warnings)
       )
 
       write_outputs(output_dir, document)

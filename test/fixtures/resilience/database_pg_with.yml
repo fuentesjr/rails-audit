@@ -1,0 +1,11 @@
+default: &default
+  adapter: postgresql
+  connect_timeout: 5
+  variables:
+    statement_timeout: 5s
+
+development:
+  adapter: postgresql
+
+production:
+  <<: *default

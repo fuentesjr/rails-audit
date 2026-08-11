@@ -54,6 +54,7 @@ class CLITest < Minitest::Test
       report_path = File.join(output_dir, "RAILS_AUDIT_REPORT.md")
       assert_path_exists findings_path
       assert_path_exists report_path
+      assert_path_exists File.join(output_dir, "raw", "resilience.json")
 
       document = JSON.parse(File.read(findings_path))
       findings = document.fetch("findings")
@@ -64,10 +65,21 @@ class CLITest < Minitest::Test
       assert_includes files, "app/controllers/users_controller.rb"
       assert files.none? { |file| file.start_with?("/") },
              "expected all finding paths to be target-root-relative, got: #{files.uniq}"
+      resilience_tool = document.fetch("tools").find { |tool| tool.fetch("name") == "resilience" }
+      resilience_findings = findings.select { |finding| finding.fetch("tool") == "resilience" }
+      refute_nil resilience_tool
+      assert_equal RailsAudit::VERSION, resilience_tool.fetch("version")
+      assert_equal resilience_findings.size, resilience_tool.fetch("raw_count")
+      assert_equal %w[
+        Resilience/MissingConnectTimeout
+        Resilience/MissingRequestTimeout
+        Resilience/MissingStatementTimeout
+      ], resilience_findings.map { |finding| finding.fetch("rule") }.sort
 
       report = File.read(report_path)
       assert_includes report, "# rails-audit report"
       assert_includes report, "## Security"
+      assert_includes report, "## Resilience"
     end
   end
 
@@ -141,6 +153,14 @@ class CLITest < Minitest::Test
       { payload: [], name: "schema", version: RailsAudit::VERSION,
         raw_count: 0, exit_code: 0 }
     end
+    resilience = lambda do |target:, output_path:|
+      _arguments = [target, output_path]
+      mutex.synchronize { active += 1; peak = [peak, active].max }
+      sleep 0.1
+      mutex.synchronize { active -= 1 }
+      { payload: [], name: "resilience", version: RailsAudit::VERSION,
+        raw_count: 0, exit_code: 0, warnings: [] }
+    end
 
     Dir.mktmpdir do |output_dir|
       stdout, stderr = StringIO.new, StringIO.new
@@ -148,8 +168,46 @@ class CLITest < Minitest::Test
         RailsAudit::Runners.stub(:rubocop, rubocop) do
           RailsAudit::Runners.stub(:reek, reek) do
             RailsAudit::SchemaAnalyzer.stub(:analyze, schema) do
+              RailsAudit::ResilienceAnalyzer.stub(:analyze, resilience) do
+                RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
+                  ["audit", TARGET_APP, "--output-dir", output_dir]
+                )
+              end
+            end
+          end
+        end
+      end
+
+      assert_equal 0, status, "expected success, stderr: #{stderr.string}"
+      assert_equal 5, peak, "expected all five analyzers to overlap; peak concurrency was #{peak}"
+    end
+  end
+
+  def test_analyzer_warnings_merge_with_cli_owned_warnings
+    empty_brakeman = lambda do |**|
+      { payload: { "warnings" => [] }, name: "brakeman", version: "8.0.5",
+        raw_count: 0, exit_code: 0 }
+    end
+    empty_rubocop = lambda do |**|
+      { payload: { "files" => [], "summary" => { "offense_count" => 0 } },
+        name: "rubocop", version: "1.88.2", raw_count: 0, exit_code: 0 }
+    end
+    empty_reek = lambda do |**|
+      { payload: [], name: "reek", version: "6.5.0", raw_count: 0, exit_code: 0 }
+    end
+    empty_schema = lambda do |**|
+      { payload: [], name: "schema", version: RailsAudit::VERSION, raw_count: 0, exit_code: 0 }
+    end
+
+    Dir.mktmpdir do |target|
+      output_dir = File.join(target, "output")
+      stdout, stderr = StringIO.new, StringIO.new
+      status = RailsAudit::Runners.stub(:brakeman, empty_brakeman) do
+        RailsAudit::Runners.stub(:rubocop, empty_rubocop) do
+          RailsAudit::Runners.stub(:reek, empty_reek) do
+            RailsAudit::SchemaAnalyzer.stub(:analyze, empty_schema) do
               RailsAudit::CLI.new(stdout: stdout, stderr: stderr).run(
-                ["audit", TARGET_APP, "--output-dir", output_dir]
+                ["audit", target, "--output-dir", output_dir]
               )
             end
           end
@@ -157,9 +215,12 @@ class CLITest < Minitest::Test
       end
 
       assert_equal 0, status, "expected success, stderr: #{stderr.string}"
-      assert_operator peak, :>=, 2,
-                      "expected runners to overlap; peak concurrency was #{peak} " \
-                      "(1 means they ran sequentially)"
+      warnings = JSON.parse(File.read(File.join(output_dir, "findings.json"))).fetch("warnings")
+      assert_equal 4, warnings.size
+      assert_includes warnings, SCHEMA_MISSING_WARNING
+      assert_includes warnings, MINITEST_MISSING_WARNING
+      assert(warnings.any? { |warning| warning.include?("config/database.yml not found") })
+      assert(warnings.any? { |warning| warning.include?("Gemfile.lock not found") })
     end
   end
 
