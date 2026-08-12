@@ -85,6 +85,28 @@ class MappingsTest < Minitest::Test
                    impact: "medium", category: "complexity"
   end
 
+  def test_resilience_cops_have_explicit_confidence_with_legacy_rubocop_fallback
+    expected = {
+      "RailsAudit/TimeoutModuleUse" => ["medium", "high"],
+      "RailsAudit/NetHttpDefaultTimeouts" => ["medium", "high"],
+      "RailsAudit/NetHttpMissingTimeout" => ["medium", "low"],
+      "RailsAudit/FaradayMissingTimeout" => ["medium", "medium"],
+      "RailsAudit/HttpartyMissingTimeout" => ["medium", "medium"],
+      "RailsAudit/RackTimeoutDisabled" => ["high", "high"]
+    }
+
+    expected.each do |rule, (impact, confidence)|
+      assert_mapping "rubocop", rule, impact: impact, category: "resilience"
+      assert_equal confidence, RailsAudit::Mappings.confidence(tool: "rubocop", rule: rule)
+    end
+    assert_equal "medium", RailsAudit::Mappings.confidence(
+      tool: "rubocop", rule: "RailsAudit/FatModel"
+    )
+    assert_equal "medium", RailsAudit::Mappings.confidence(
+      tool: "rubocop", rule: "Style/StringLiterals"
+    )
+  end
+
   def test_reek_uses_rule_family_defaults
     assert_mapping "reek", "TooManyStatements", impact: "medium", category: "complexity"
     assert_mapping "reek", "FeatureEnvy", impact: "medium", category: "complexity"

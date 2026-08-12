@@ -46,7 +46,7 @@ module RailsAudit
             rule: rule,
             category: Mappings.category(tool: "rubocop", rule: rule),
             impact: Mappings.impact(tool: "rubocop", rule: rule),
-            confidence: Mappings.confidence(tool: "rubocop"),
+            confidence: Mappings.confidence(tool: "rubocop", rule: rule),
             message: offense.fetch("message"),
             location: location(
               file: file,

@@ -159,16 +159,36 @@ negative (DESIGN.md §8):
 |---|---|---|---|
 | `RailsAudit/TimeoutModuleUse` | any `Timeout.timeout` send (explicit receiver form only) | medium | high |
 | `RailsAudit/NetHttpDefaultTimeouts` | module-level `Net::HTTP.get`/`.get_response`/`.post_form` — these accept no timeout options and always use the 60s defaults *(guide)* | medium | high |
-| `RailsAudit/NetHttpMissingTimeout` | `Net::HTTP.new`/`.start` with no `open_timeout`/`read_timeout`/`write_timeout` kwarg or setter in the enclosing method body | medium | low |
-| `RailsAudit/FaradayMissingTimeout` | `Faraday.new` with no `request:` hash containing `timeout`/`open_timeout` and no `options.timeout` assignment in an attached block | medium | medium |
-| `RailsAudit/HttpartyMissingTimeout` | class body with `include HTTParty` and none of the `default_timeout`/`read_timeout`/`open_timeout` macros; bare `HTTParty.get`-family calls with no `timeout:` kwarg | medium | medium |
-| `RailsAudit/RackTimeoutDisabled` | literal `0` or `false` for `service_timeout` (kwarg or setter) — "Service timeout can be disabled entirely by setting the property to `0` or `false`" (rack-timeout `doc/settings.md`, verified 2026-08-11) | high | high |
+| `RailsAudit/NetHttpMissingTimeout` | `Net::HTTP.new`/`.start` with no timeout kwarg (`.start` only — see correlation rules below) and no `open_timeout`/`read_timeout`/`write_timeout` setter correlated to the constructor in the enclosing scope | medium | low |
+| `RailsAudit/FaradayMissingTimeout` | `Faraday.new` with no `request:` hash containing `timeout`/`open_timeout` and no `options` timeout assignment (`.timeout=`, `.open_timeout=`, or `[]=` with those keys) in an attached block (plain, `_1`, or `it` parameters) | medium | medium |
+| `RailsAudit/HttpartyMissingTimeout` | class or module body with `include HTTParty` and none of the `default_timeout`/`read_timeout`/`open_timeout` macros; bare `HTTParty.get`-family calls with no `timeout:` kwarg | medium | medium |
+| `RailsAudit/RackTimeoutDisabled` | literal `0`, `0.0`, or `false` for `service_timeout` (kwarg or setter) — "Service timeout can be disabled entirely by setting the property to `0` or `false`" (rack-timeout `doc/settings.md`, verified 2026-08-11) | high | high |
 
 Known blind spots, accepted for v1 and encoded as confidence, not fixed:
 timeouts set through wrapper classes, `Faraday.default_connection_options`,
 or objects configured far from the construction site are invisible to a
 call-site cop. Messages must say what the cop could not see (e.g. "no timeout
 set at this call site") rather than assert none exists anywhere.
+
+`NetHttpMissingTimeout` correlation rules (review round, 2026-08-11):
+
+- Timeout kwargs suppress on `.start` only. `Net::HTTP.new` accepts no
+  options hash: keywords are silently bound to its `port` parameter and the
+  60s defaults stay in force (verified 2026-08-11 on Ruby 4.0.1 /
+  net-http 0.9.1) — `.new` with timeout-looking kwargs must still fire.
+- Setter correlation searches the enclosing method body, or the whole file
+  when the constructor sits outside any `def` (initializer/script case).
+- These constructor bindings correlate: plain assignment, memoizing `||=`,
+  and a `.tap` block chained on the constructor. `.then`/`.yield_self` do
+  not carry identity through an assignment and stay immediate-block-only.
+- Configuration blocks count with plain, numbered (`_1`), and `it`
+  parameters.
+- An attribute `||=` (`http.read_timeout ||= 2`) counts as a setter.
+- Accepted v1 blind spots beyond the list above: multiple assignment
+  (`http, port = Net::HTTP.new(h), 80`), string-keyed option hashes (these
+  libraries mostly ignore string keys, so firing is usually correct),
+  safe-navigation sends on constant receivers, and control flow —
+  correlation is lexical, so a setter under `if` still suppresses.
 
 Timeout-module message rationale: `Timeout.timeout` interrupts at arbitrary
 points and can leave state corrupted; prefer each library's native timeout
@@ -223,7 +243,15 @@ restructuring).
   spots as documented non-goals), plus a real-runner firing test in the
   `rubocop_plugin_cops_test.rb` pattern — one offense per cop asserted in
   `bundle exec rubocop` JSON output from a fixture app, so a lost
-  registration fails the suite instead of going silently dark.
+  registration fails the suite instead of going silently dark. Also (review
+  round, 2026-08-11): `Net::HTTP.new` with timeout kwargs fires while
+  `.start` with them stays clean; tap-then-assign, memoized `||=`, `_1`/`it`
+  configuration blocks, top-level constructor with adjacent setter, and
+  attribute `||=` setters all suppress; Faraday block `options.open_timeout=`
+  and `options[:timeout]=` suppress (with plain, `_1`, and `it` block
+  parameters); `include HTTParty` in a module body and
+  `service_timeout = 0.0` fire; correlation tests assert the offense line,
+  not just the count.
 - Extend normalizer/report/digest/CLI tests for the new tool and category:
   report section order (resilience after correctness), high-impact resilience
   findings listed in Critical & High, end-to-end CLI fixture run asserting

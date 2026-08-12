@@ -35,7 +35,33 @@ class RubocopCustomCopsTest < Minitest::Test
       assert_equal ["medium", "complexity"], [fat_model.impact, fat_model.category]
       assert_equal ["medium", "complexity"], [fat_action.impact, fat_action.category]
       assert_equal "app/models/fat_record.rb", fat_model.location.fetch(:file)
-      assert_nil findings.find { |finding| finding.rule == "RailsAudit/ServiceObject" }
+      assert_nil(findings.find { |finding| finding.rule == "RailsAudit/ServiceObject" })
+    end
+  end
+
+  def test_real_runner_fires_every_resilience_cop
+    Dir.mktmpdir do |dir|
+      output_path = File.join(dir, "rubocop.json")
+
+      result = with_environment("XDG_CACHE_HOME" => File.join(dir, "cache")) do
+        RailsAudit::Runners.rubocop(target: TARGET, output_path: output_path)
+      end
+      cop_counts = result.fetch(:payload).fetch("files")
+        .flat_map { |file| file.fetch("offenses") }
+        .map { |offense| offense.fetch("cop_name") }
+        .tally
+
+      %w[
+        RailsAudit/TimeoutModuleUse
+        RailsAudit/NetHttpDefaultTimeouts
+        RailsAudit/NetHttpMissingTimeout
+        RailsAudit/FaradayMissingTimeout
+        RailsAudit/HttpartyMissingTimeout
+        RailsAudit/RackTimeoutDisabled
+      ].each do |cop|
+        assert_equal 1, cop_counts.fetch(cop, 0),
+                     "expected exactly one #{cop} offense, got: #{cop_counts}"
+      end
     end
   end
 

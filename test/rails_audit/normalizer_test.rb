@@ -44,6 +44,25 @@ class NormalizerTest < Minitest::Test
     assert_nil finding.context
   end
 
+  def test_normalizes_rubocop_confidence_from_the_rule_mapping
+    raw = {
+      "files" => [
+        {
+          "path" => "target/lobsters/app/services/client.rb",
+          "offenses" => [
+            rubocop_offense("RailsAudit/NetHttpMissingTimeout", 3),
+            rubocop_offense("RailsAudit/TimeoutModuleUse", 8),
+            rubocop_offense("Style/StringLiterals", 13)
+          ]
+        }
+      ]
+    }
+
+    findings = RailsAudit::Normalizer.rubocop(raw, target_root: TARGET_ROOT)
+
+    assert_equal %w[low high medium], findings.map(&:confidence)
+  end
+
   def test_normalizes_reek_ranges_and_keeps_long_line_sets
     raw = raw_fixture("reek.json")
     findings = RailsAudit::Normalizer.reek(raw, target_root: TARGET_ROOT)
@@ -161,5 +180,17 @@ class NormalizerTest < Minitest::Test
   def raw_fixture(name)
     path = File.expand_path("../fixtures/raw/#{name}", __dir__)
     JSON.parse(File.read(path))
+  end
+
+  def rubocop_offense(cop_name, line)
+    {
+      "cop_name" => cop_name,
+      "message" => "example",
+      "location" => {
+        "start_line" => line,
+        "last_line" => line,
+        "start_column" => 1
+      }
+    }
   end
 end

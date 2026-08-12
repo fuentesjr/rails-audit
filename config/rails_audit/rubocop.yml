@@ -64,3 +64,21 @@ RailsAudit/FatModel:
 RailsAudit/FatControllerAction:
   Enabled: true
   MaxLines: 15
+
+RailsAudit/TimeoutModuleUse:
+  Enabled: true
+
+RailsAudit/NetHttpDefaultTimeouts:
+  Enabled: true
+
+RailsAudit/NetHttpMissingTimeout:
+  Enabled: true
+
+RailsAudit/FaradayMissingTimeout:
+  Enabled: true
+
+RailsAudit/HttpartyMissingTimeout:
+  Enabled: true
+
+RailsAudit/RackTimeoutDisabled:
+  Enabled: true

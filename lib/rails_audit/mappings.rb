@@ -56,6 +56,24 @@ module RailsAudit
       "Rails/ThreeStateBooleanColumn" => { impact: "medium", category: "rails" }.freeze,
       "RailsAudit/FatModel" => { impact: "medium", category: "complexity" }.freeze,
       "RailsAudit/FatControllerAction" => { impact: "medium", category: "complexity" }.freeze,
+      "RailsAudit/TimeoutModuleUse" => {
+        impact: "medium", category: "resilience", confidence: "high"
+      }.freeze,
+      "RailsAudit/NetHttpDefaultTimeouts" => {
+        impact: "medium", category: "resilience", confidence: "high"
+      }.freeze,
+      "RailsAudit/NetHttpMissingTimeout" => {
+        impact: "medium", category: "resilience", confidence: "low"
+      }.freeze,
+      "RailsAudit/FaradayMissingTimeout" => {
+        impact: "medium", category: "resilience", confidence: "medium"
+      }.freeze,
+      "RailsAudit/HttpartyMissingTimeout" => {
+        impact: "medium", category: "resilience", confidence: "medium"
+      }.freeze,
+      "RailsAudit/RackTimeoutDisabled" => {
+        impact: "high", category: "resilience", confidence: "high"
+      }.freeze,
       "Minitest/UnreachableAssertion" => { impact: "high", category: "correctness" }.freeze,
       "Minitest/SkipEnsure" => { impact: "medium", category: "correctness" }.freeze,
       "Minitest/UselessAssertion" => { impact: "high", category: "correctness" }.freeze,
@@ -147,6 +165,7 @@ module RailsAudit
       return BRAKEMAN_CONFIDENCE.fetch(raw_confidence, "medium") if tool == "brakeman"
       return raw_confidence if tool == "schema"
       return RESILIENCE_RULES.fetch(rule).fetch(:confidence) if tool == "resilience"
+      return rule ? rubocop_mapping(rule).fetch(:confidence, "medium") : "medium" if tool == "rubocop"
       if tool == "active_record_doctor"
         return ACTIVE_RECORD_DOCTOR_RULES.fetch(rule).fetch(:confidence)
       end
