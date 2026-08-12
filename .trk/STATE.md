@@ -7,7 +7,6 @@ Static pipeline + Phase 8-zero is the shipped product. Phases 1–7 code items a
 
 ## Next
 1. Decide final gem name (rails-audit is still a placeholder; rename stays cheap only until a RubyGems name exists).
-2. Implement resilience (timeout) auditing per docs/resilience-timeouts.md — M1 analyzer + category plumbing, M2 cops, M3 validation pass + docs
 
 ## Backlog
 - open-design-confidence-defaults — DESIGN.md §9: per-rule confidence defaults still open (2026-07-18T08:38Z)
