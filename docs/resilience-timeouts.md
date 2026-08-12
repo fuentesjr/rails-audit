@@ -271,6 +271,7 @@ validation target observed using it, or a real-use report of a miss.
 | ActionMailer / net-smtp | usually background work; lower blast radius |
 | SQLite `busy_timeout` | embedded engine; different failure model |
 | Effective-value checks through ENV/ERB | requires executing target code — execution tier (DESIGN.md §8, decision-gated) |
+| Faraday options passed through a local variable (`opts = { request: { timeout: … } }; Faraday.new(nil, opts)`) | needs local dataflow tracking; known FP mode, observed once (Discourse `WebHookEmitter`, validation record below); backlog `faraday-lvar-options-correlation` |
 
 ## 10. Adoption condition and feedback loop
 
@@ -279,6 +280,40 @@ least one real validation target (Lobsters; ideally also Mastodon and
 Discourse) shows acceptable noise, with that assessment recorded in the
 handoff. Threshold and confidence tuning happens against that evidence — the
 §6 table being versioned data is the tuning mechanism.
+
+### Validation record (2026-08-12, M3)
+
+All three targets audited with `audit` (static tier only). Every resilience
+finding was hand-inspected on Lobsters and Mastodon; on Discourse, 10 of 40
+were inspected individually and the rest verified by class pattern.
+
+| Target (clone) | Total findings | Resilience | Verified TP | FP |
+|---|---|---|---|---|
+| Lobsters `57268d7` | 12,323 | 3 | 3 | 0 |
+| Mastodon `2b53f93` | 22,671 | 7 | 7 | 0 |
+| Discourse `eedf0ac2` | 424,147 | 40 | 39 | 1 |
+
+- **Inactivity warnings worked on real targets**: Lobsters ships no
+  `config/database.yml` and Discourse's has a structural ERB preamble
+  (`<%` block at line 1) — both runs surfaced the "database timeout checks
+  were inactive" warning instead of reading as clean.
+- **The one FP**: Discourse `app/services/web_hook_emitter.rb:27` passes a
+  timeout-bearing options hash through a local variable to `Faraday.new` —
+  see the §9 deferral row (`faraday-lvar-options-correlation`). The
+  finding's "not visible at this call site" wording is literally accurate
+  and its confidence is `medium`.
+- **Tuning observation (not a defect)**: test/tooling paths account for
+  Mastodon's 3 `TimeoutModuleUse` hits and roughly 12 of Discourse's 40
+  (all 7 `TimeoutModuleUse`, 2 `NetHttpDefaultTimeouts` in `spec/support/`,
+  2 Faraday hits in `docs/developer-guides/`, `script/bench.rb`). A future
+  test-path confidence dampener or exclusion is a §6-style tuning decision.
+- **Validation surfaced a real pipeline defect**: brakeman's
+  `line: null` on file-level warnings crashed the canonical sort
+  (Discourse `Gemfile` + rubocop offenses on the same file); fixed with a
+  regression test in the M3 change.
+
+Assessment: noise is acceptable — 50 resilience findings across 459,141
+total, one FP, no silent inactivity. Adoption condition met.
 
 ## 11. Milestones
 

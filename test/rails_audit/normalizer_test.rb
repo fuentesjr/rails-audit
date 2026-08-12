@@ -111,6 +111,42 @@ class NormalizerTest < Minitest::Test
     assert_equal expected_order, findings
   end
 
+  def test_normalizes_file_level_brakeman_warning_before_same_file_rubocop_offense
+    findings = RailsAudit::Normalizer.normalize(
+      brakeman: {
+        "warnings" => [
+          {
+            "fingerprint" => "brakeman-fingerprint",
+            "warning_type" => "Unmaintained Dependency",
+            "message" => "Unmaintained dependency",
+            "confidence" => "Medium",
+            "file" => "Gemfile",
+            "line" => nil,
+            "location" => { "type" => "file" }
+          }
+        ]
+      },
+      rubocop: {
+        "files" => [
+          {
+            "path" => "Gemfile",
+            "offenses" => [rubocop_offense("Style/StringLiterals", 1)]
+          }
+        ]
+      },
+      reek: [],
+      schema: [],
+      target_root: TARGET_ROOT
+    )
+
+    brakeman_finding, rubocop_finding = findings
+
+    assert_equal({ file: "Gemfile", start_line: 0, end_line: 0, column: nil, lines: nil },
+                 brakeman_finding.location)
+    assert_equal %w[brakeman rubocop], findings.map(&:tool)
+    assert_equal "Gemfile", rubocop_finding.location[:file]
+  end
+
   def test_normalizes_resilience_rows_using_each_rows_file_and_rule_mapping
     payload = [
       {

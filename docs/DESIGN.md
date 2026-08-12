@@ -434,9 +434,11 @@ Illustrative resolution for the two tools currently in the roster:
 | design | reek `DuplicateMethodCall`, `UtilityFunction`, `DataClump`, `ControlParameter`, `Attribute`, `NilCheck`, `MissingSafeMethod` |
 | correctness | rubocop `Lint/*`, reek `MissingSafeMethod`, `NilCheck` (**open question**: are `NilCheck` and `MissingSafeMethod` correctness smells or design smells? spike didn't resolve this — both are listed under both candidate rows above deliberately to flag the ambiguity) |
 
-Category set stays `security | correctness | rails | performance | complexity | design |
-style` (unchanged from v1) — the fix is in the *assignment mechanism*, not the taxonomy
-itself.
+Category set is `security | correctness | resilience | rails | performance | complexity |
+design | style` — v1's set plus `resilience`, added 2026-08-11 with timeout auditing
+([`docs/resilience-timeouts.md`](resilience-timeouts.md)); `CATEGORY_ORDER` in
+`lib/rails_audit/report.rb` is authoritative. The v2 fix above is in the *assignment
+mechanism*, not the taxonomy itself.
 
 ### Location schema
 
@@ -680,6 +682,17 @@ CI gate or pre-commit hook without an explicit opt-in and a generous timeout bud
   `db/schema.rb` and a `spec/*_spec.rb` file but no Minitest test files — the schema
   warning stays quiet while the Minitest one fires alone, confirming the two checks are
   independent rather than conflated.
+- **Resilience timeout auditing (in-house)** — **Adopted (2026-08-11).** Not a third-party
+  tool: `RailsAudit::ResilienceAnalyzer` runs as a fifth concurrent pipeline thread reading
+  `config/database.yml` (never ERB-evaluated — untrusted input), `config/` files, and
+  `Gemfile.lock`; six custom cops (`RailsAudit/TimeoutModuleUse`,
+  `NetHttpDefaultTimeouts`, `NetHttpMissingTimeout`, `FaradayMissingTimeout`,
+  `HttpartyMissingTimeout`, `RackTimeoutDisabled`) run inside the existing rubocop runner
+  via the CLI-owned config. Introduced the `resilience` category (§5). Findings are value
+  judgments with suggested thresholds, never gating. Every inactive check path warns
+  (missing `database.yml`, unparseable configs) per the silent-false-negative rule.
+  Normative spec, correlation rules, deferrals, and the three-target validation record:
+  [`docs/resilience-timeouts.md`](resilience-timeouts.md).
 - **RubyCritic** — also explicitly out of the spike's scope (`SPIKE_PLAN.md`). Brief,
   unspiked assessment only: it wraps reek/flog/flay into an HTML dashboard; if added, it
   would introduce yet another un-owned scoring scheme (flog's complexity score) needing

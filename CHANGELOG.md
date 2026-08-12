@@ -7,6 +7,17 @@ All notable changes to this project are documented here. The format is loosely b
 ## [Unreleased]
 
 ### Added
+- **Resilience timeout auditing** under a new `resilience` category (spec:
+  `docs/resilience-timeouts.md`). A `ResilienceAnalyzer` runs as a fifth concurrent
+  pipeline thread checking `config/database.yml` (parsed, never ERB-evaluated) for
+  missing statement/connect timeouts, `config/` for rack-timeout wiring, and
+  `Gemfile.lock` for a request-timeout gem. Six new cops
+  (`RailsAudit/TimeoutModuleUse`, `NetHttpDefaultTimeouts`, `NetHttpMissingTimeout`,
+  `FaradayMissingTimeout`, `HttpartyMissingTimeout`, `RackTimeoutDisabled`) flag HTTP
+  clients and middleware left on unbounded or default timeouts. Findings are value
+  judgments with suggested thresholds — never gating — and every check that cannot run
+  (missing `database.yml`, unparseable config) surfaces a warning instead of reading
+  as clean.
 - Configurable `--max-findings` cap on the `audit` command (default 500,000). Over the
   cap the run fails loudly and overridably rather than straining memory; findings are
   never silently dropped or truncated.
@@ -17,6 +28,12 @@ All notable changes to this project are documented here. The format is loosely b
   the Rails schema/migration cops. New: when a target has no `test/**/*_test.rb` files, the report surfaces a
   warning that rubocop-minitest cops had nothing to scan — an RSpec-shop (or any
   non-Minitest) target reads as "no signal," not "tests are clean."
+
+### Fixed
+- Crash (`ArgumentError` in the canonical sort) when brakeman reported a file-level
+  warning with no line number (e.g. `Unmaintained Dependency` on a `Gemfile`) and
+  another tool also had findings on the same file. File-level warnings now normalize to
+  line 0. Found auditing Discourse.
 
 ### Changed
 - The four static runners (brakeman, rubocop, reek, schema analyzer) now run concurrently.

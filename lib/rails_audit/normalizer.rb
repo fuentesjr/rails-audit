@@ -12,7 +12,8 @@ module RailsAudit
                     { class: raw_context["class"], method: raw_context["method"] }
                   end
         file = relative_path(warning.fetch("file"), target_root)
-        line = warning.fetch("line")
+        # Brakeman reports file-level warnings (e.g. Unmaintained Dependency) with line: null; 0 marks the whole file and keeps start_line an Integer for sort keys.
+        line = warning.fetch("line") || 0
         rule = warning.fetch("warning_type")
 
         Finding.new(

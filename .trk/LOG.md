@@ -11,3 +11,15 @@ Outcome: M1 landed: ResilienceAnalyzer + category plumbing verified by orchestra
 
 ## 2026-08-11T23:20Z log
 M1 resilience committed on main; M2 (cops) next
+
+## 2026-08-12T00:31Z log
+M2 committed as 6aedc59: six timeout cops, per-rule rubocop confidence, review round fixed 13 verified defects
+
+## 2026-08-12T00:31Z resolve resilience-m2
+Outcome: Six cops shipped in 6aedc59; grok review round verified and fixed; suite 181/1143 green
+
+## 2026-08-12T01:08Z resolve resilience-m3
+Outcome: M3 landed: three-target validation (Lobsters 3/12323, Mastodon 7/22671, Discourse 40/424147; 49/50 TP, 1 FP deferred to backlog faraday-lvar-options-correlation); Discourse run surfaced and fixed normalizer nil-line crash (red-green); DESIGN.md/CHANGELOG updated; adoption condition in spec §10 met
+
+## 2026-08-12T01:08Z log
+Resilience feature complete: M1-M3 all landed; validation record in docs/resilience-timeouts.md §10
