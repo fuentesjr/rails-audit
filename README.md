@@ -105,11 +105,13 @@ The static pipeline runs four tools, all pinned:
   style, correctness, Rails idiom, performance, Minitest-idiom cops, and the static
   schema/migration cops.
 - **reek** — code smells / complexity and design issues.
-- **In-repo additions** — custom cops (fat model, fat controller action as size signals)
-  and a static schema analyzer that reads `db/schema.rb` for issues like unindexed foreign
-  keys, mismatched FK types, and tables without a primary key — all without booting the
-  app or touching a database. Operation/service *shape* abuse (not mere presence) is
-  enforced by [metz-scan](https://github.com/fuentesjr/metz-scan), not this auditor.
+- **In-repo additions** — custom cops (fat model, fat controller action as size signals),
+  a static schema analyzer that reads `db/schema.rb` for issues like unindexed foreign
+  keys, mismatched FK types, and tables without a primary key, and a resilience timeout
+  analyzer plus HTTP-client timeout cops (`docs/resilience-timeouts.md`) — all without
+  booting the app or touching a database. Operation/service *shape* abuse (not mere
+  presence) is enforced by [metz-scan](https://github.com/fuentesjr/metz-scan), not this
+  auditor.
 
 `rails-audit` is an auditor, not a design coach. Reek and the custom cops surface
 complexity and design findings, but the tool doesn't explain design principles or track

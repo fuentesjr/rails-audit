@@ -34,11 +34,19 @@ All notable changes to this project are documented here. The format is loosely b
   warning with no line number (e.g. `Unmaintained Dependency` on a `Gemfile`) and
   another tool also had findings on the same file. File-level warnings now normalize to
   line 0. Found auditing Discourse.
+- `FaradayMissingTimeout` no longer flags `Faraday.new` when timeouts live in a
+  same-method options local (Discourse `WebHookEmitter`). Broader multi-method
+  Faraday dataflow stays deferred.
+- Tool versions (`Runners.gem_version`) and `Resilience/MissingRequestTimeout`
+  tolerate CRLF `Gemfile.lock` line endings.
 
 ### Changed
 - The four static runners (brakeman, rubocop, reek, schema analyzer) now run concurrently.
   Output is unaffected — findings are canonically re-sorted — and a failing runner still
   fails the whole audit loudly.
+- The packaged gem is an allow-list (`lib/`, `exe/`, CLI-owned rubocop config,
+  `Gemfile`/`Gemfile.lock`, user-facing docs). Process files (`AGENTS.md`, `.trk/`,
+  design notes) no longer ship.
 
 ## [0.1.0] - 2026-07-10
 

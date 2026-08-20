@@ -29,3 +29,6 @@ Closed runners-gem-version-crlf (\\r?$ on gem_version) and faraday-lvar-options-
 
 ## 2026-08-20T18:20Z resolve professionalize-p1p2
 Outcome: Phase 1 GitHub About/topics/wiki-off/secret-scanning live on origin. Phase 2 fileset allow-list, CoC, tracker stub deletion, gemspec hygiene on branch professionalize/github-hygiene (uncommitted worktree).
+
+## 2026-08-20T20:09Z log
+Align docs with 1c2146c (fileset/CoC shipped) and 4f27848 (Faraday lvar FP and CRLF gem_version closed). Changelog, resilience spec status, and README in-repo additions catch up.

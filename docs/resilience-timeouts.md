@@ -1,6 +1,6 @@
 # Resilience (timeouts) — feature specification
 
-Status: scope approved by owner 2026-08-11; implementation not started.
+Status: shipped (M1–M3). Same-method Faraday lvar FP closed 2026-08-12.
 Audience: implementing agents. Sections marked **normative** are the contract;
 deviations require a stated reason in the handoff.
 
@@ -312,7 +312,7 @@ were inspected individually and the rest verified by class pattern.
   regression test in the M3 change.
 
 Assessment: noise is acceptable — 50 resilience findings across 459,141
-total, one FP, no silent inactivity. Adoption condition met.
+total, one FP (closed 2026-08-12), no silent inactivity. Adoption condition met.
 
 ## 11. Milestones
 
