@@ -72,3 +72,8 @@ Do this in its own PR, separate from feature work.
 The execution tier (`execution-audit`) is experimental and its deeper stages are deferred
 (see `docs/execution-tier-8a-findings.md`). If you're proposing work there, read that
 writeup first — it documents the structural blockers that led to the deferral.
+
+## Code of conduct
+
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
+

@@ -6,13 +6,13 @@ Gem::Specification.new do |spec|
   spec.name = "rails-audit"
   spec.version = RailsAudit::VERSION
   spec.authors = ["Salvador Fuentes Jr."]
-  spec.email = ["9240+fuentesjr@users.noreply.github.com"]
+  spec.email = ["fuentesjr@duck.com"]
 
   spec.summary = "Deterministic Rails audit CLI"
   spec.description = "Runs a pinned toolchain of static-analysis tools (brakeman, " \
                      "rubocop + extensions, reek) against a Rails codebase, normalizes " \
                      "their output into one findings schema, and renders a " \
-                     "severity-ranked report. See docs/DESIGN.md."
+                     "severity-ranked report."
   spec.homepage = "https://github.com/fuentesjr/rails-audit"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
@@ -20,21 +20,22 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/fuentesjr/rails-audit"
   spec.metadata["changelog_uri"] = "https://github.com/fuentesjr/rails-audit/blob/main/CHANGELOG.md"
+  spec.metadata["bug_tracker_uri"] = "https://github.com/fuentesjr/rails-audit/issues"
+  spec.metadata["documentation_uri"] = "https://github.com/fuentesjr/rails-audit/blob/main/README.md"
+  spec.metadata["rubygems_mfa_required"] = "true"
 
-  # Uncomment the line below to require MFA for gem pushes.
-  # This helps protect your gem from supply chain attacks by ensuring
-  # no one can publish a new version without multi-factor authentication.
-  # See: https://guides.rubygems.org/mfa-requirement-opt-in/
-  # spec.metadata["rubygems_mfa_required"] = "true"
-
-  # Specify which files should be added to the gem when it is released.
-  # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
-  gemspec = File.basename(__FILE__)
-  spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
-    ls.readlines("\x0", chomp: true).reject do |f|
-      (f == gemspec) ||
-        f.start_with?(*%w[bin/ Gemfile .gitignore test/ .github/])
-    end
+  gem_root = __dir__
+  spec.files = Dir.glob("lib/**/*", File::FNM_DOTMATCH, base: gem_root)
+                  .reject { |f| File.directory?(File.join(gem_root, f)) } +
+               Dir.glob("exe/rails-audit", base: gem_root)
+                  .select { |f| File.file?(File.join(gem_root, f)) } +
+               Dir.glob("config/rails_audit/**/*", File::FNM_DOTMATCH, base: gem_root)
+                  .reject { |f| File.directory?(File.join(gem_root, f)) } +
+               %w[Gemfile Gemfile.lock LICENSE.txt README.md CHANGELOG.md SECURITY.md CODE_OF_CONDUCT.md rails-audit.gemspec]
+                 .select { |f| File.exist?(File.join(gem_root, f)) }
+  unless spec.files.include?("lib/rails_audit.rb")
+    raise "rails-audit.gemspec: lib/rails_audit.rb missing from packaged files; " \
+          "build from the repo root (gem build rails-audit.gemspec)."
   end
   spec.bindir = "exe"
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
@@ -50,7 +51,4 @@ Gem::Specification.new do |spec|
   spec.add_dependency "rubocop-minitest", "0.40.0"
   spec.add_dependency "rubocop-performance", "1.26.1"
   spec.add_dependency "rubocop-rails", "2.35.5"
-
-  # For more information and examples about making a new gem, check out our
-  # guide at: https://guides.rubygems.org/make-your-own-gem/
 end

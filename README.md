@@ -144,3 +144,8 @@ see the design docs. Version is `0.1.0` (pre-release).
 
 Available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
 See [`LICENSE.txt`](LICENSE.txt).
+
+## Code of Conduct
+
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
+
