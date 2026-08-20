@@ -358,6 +358,70 @@ class RubocopResilienceCopsTest < Minitest::Test
     assert_equal 1, offenses.size
   end
 
+  def test_faraday_missing_timeout_accepts_same_method_lvar_options_hash
+    assert_empty offenses_for(
+      RuboCop::Cop::RailsAudit::FaradayMissingTimeout,
+      <<~RUBY
+        def emit
+          connection_opts = {
+            request: {
+              open_timeout: 20,
+              timeout: 20
+            }
+          }
+          Faraday.new(nil, connection_opts)
+        end
+
+        def open_only
+          opts = { request: { open_timeout: 1 } }
+          Faraday.new(url, opts)
+        end
+      RUBY
+    )
+  end
+
+  def test_faraday_missing_timeout_flags_when_lvar_lacks_timeouts_or_is_reassigned
+    offenses = offenses_for(
+      RuboCop::Cop::RailsAudit::FaradayMissingTimeout,
+      <<~RUBY
+        def without_timeout_keys
+          opts = { request: { proxy: proxy } }
+          Faraday.new(url, opts)
+        end
+
+        def reassigned_away_from_timeouts
+          opts = { request: { timeout: 2 } }
+          opts = { headers: headers }
+          Faraday.new(url, opts)
+        end
+
+        def non_hash_lvar
+          opts = build_options
+          Faraday.new(url, opts)
+        end
+      RUBY
+    )
+
+    assert_equal [3, 9, 14], offense_lines(offenses)
+  end
+
+  def test_faraday_missing_timeout_does_not_use_outer_method_lvar
+    offenses = offenses_for(
+      RuboCop::Cop::RailsAudit::FaradayMissingTimeout,
+      <<~RUBY
+        def outer
+          opts = { request: { timeout: 2 } }
+
+          def inner
+            Faraday.new(url, opts)
+          end
+        end
+      RUBY
+    )
+
+    assert_equal [5], offense_lines(offenses)
+  end
+
   def test_httparty_missing_timeout_flags_unconfigured_includes_and_module_calls
     class_offenses = offenses_for(
       RuboCop::Cop::RailsAudit::HttpartyMissingTimeout,

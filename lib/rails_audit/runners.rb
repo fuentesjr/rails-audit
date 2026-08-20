@@ -125,7 +125,7 @@ module RailsAudit
     private_class_method :result
 
     def gem_version(name)
-      match = File.read(GEMFILE_LOCK).match(/^    #{Regexp.escape(name)} \(([^)]+)\)$/)
+      match = File.read(GEMFILE_LOCK).match(/^    #{Regexp.escape(name)} \(([^)]+)\)\r?$/)
       raise RailsAudit::Error, "#{name} is missing from Gemfile.lock" unless match
 
       match[1]

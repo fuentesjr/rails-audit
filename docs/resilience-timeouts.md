@@ -93,10 +93,10 @@ writing, as `SchemaAnalyzer` does.
   sibling entries analyzed; only a failure outside every entry disables the
   whole file.
 - `Gemfile.lock`: line-anchored regex on the resolved-gem section, same
-  family as `Runners.gem_version` (`runners.rb:128`). Tolerate CRLF line
-  endings (`\r?$`, or normalize before matching): a Windows-authored
-  lockfile that contains `rack-timeout` must not fire
-  `Resilience/MissingRequestTimeout`.
+  family as `Runners.gem_version` (`runners.rb`). Both tolerate CRLF line
+  endings (`\r?$`): a Windows-authored lockfile that contains
+  `rack-timeout` must not fire `Resilience/MissingRequestTimeout`, and the
+  CLI's own CRLF `Gemfile.lock` must still resolve tool versions.
 
 Adapter scope: `postgresql`/`postgis` (PG rules), `mysql2`/`trilogy`
 (MySQL/MariaDB rules — the adapter can't distinguish the two servers
@@ -271,7 +271,7 @@ validation target observed using it, or a real-use report of a miss.
 | ActionMailer / net-smtp | usually background work; lower blast radius |
 | SQLite `busy_timeout` | embedded engine; different failure model |
 | Effective-value checks through ENV/ERB | requires executing target code — execution tier (DESIGN.md §8, decision-gated) |
-| Faraday options passed through a local variable (`opts = { request: { timeout: … } }; Faraday.new(nil, opts)`) | needs local dataflow tracking; known FP mode, observed once (Discourse `WebHookEmitter`, validation record below); backlog `faraday-lvar-options-correlation` |
+| Faraday options requiring multi-method or interprocedural dataflow (factory helpers, instance variables, kwargs splat of a non-local hash) | same-method lvar correlation ships for the Discourse `WebHookEmitter` FP mode; broader dataflow stays deferred until observed |
 
 ## 10. Adoption condition and feedback loop
 
@@ -297,11 +297,10 @@ were inspected individually and the rest verified by class pattern.
   `config/database.yml` and Discourse's has a structural ERB preamble
   (`<%` block at line 1) — both runs surfaced the "database timeout checks
   were inactive" warning instead of reading as clean.
-- **The one FP**: Discourse `app/services/web_hook_emitter.rb:27` passes a
-  timeout-bearing options hash through a local variable to `Faraday.new` —
-  see the §9 deferral row (`faraday-lvar-options-correlation`). The
-  finding's "not visible at this call site" wording is literally accurate
-  and its confidence is `medium`.
+- **The one FP (closed 2026-08-12)**: Discourse `app/services/web_hook_emitter.rb:27`
+  passed a timeout-bearing options hash through a local variable to
+  `Faraday.new`. Same-method lvar correlation now accepts that shape; residual
+  multi-method / interprocedural cases stay in §9.
 - **Tuning observation (not a defect)**: test/tooling paths account for
   Mastodon's 3 `TimeoutModuleUse` hits and roughly 12 of Discourse's 40
   (all 7 `TimeoutModuleUse`, 2 `NetHttpDefaultTimeouts` in `spec/support/`,

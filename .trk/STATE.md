@@ -15,6 +15,4 @@ Static pipeline + Phase 8-zero is the shipped product. Phases 1–7 code items a
 - open-design-file-access-impact — DESIGN.md §9: File Access read-vs-write impact granularity (2026-07-18T08:38Z)
 - open-design-live-claude-annotate — DESIGN.md §9: live claude binary behavior (annotate is mocked in tests) (2026-07-18T08:38Z)
 - revive-execution-tier — If ever revived: prerequisite fix-list in docs/execution-tier-8a-findings.md; no implicit spend on 8b/8c (2026-07-18T08:38Z)
-- runners-gem-version-crlf — Runners.gem_version (runners.rb:128) uses the same CRLF-hostile line-anchored regex fixed in ResilienceAnalyzer.request_timeout_gem? during M1 review; a Windows-authored target Gemfile.lock breaks tool-version detection and the minitest-missing warning. Fix with \r?$ (2026-08-11) (2026-08-11T23:22Z)
-- faraday-lvar-options-correlation — FaradayMissingTimeout FP mode: timeout options hash passed through a local variable (Discourse app/services/web_hook_emitter.rb:27, connection_opts with request:{*_timeout: 20}). Extending correlation needs same-method lvar dataflow; spec §9 deferral row added 2026-08-12 (2026-08-12T01:07Z)
 - decide-final-gem-name — Decide final gem name (rails-audit is still a placeholder; rename stays cheap only until a RubyGems name exists). (2026-08-12T03:23Z)

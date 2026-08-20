@@ -23,3 +23,9 @@ Outcome: M3 landed: three-target validation (Lobsters 3/12323, Mastodon 7/22671,
 
 ## 2026-08-12T01:08Z log
 Resilience feature complete: M1-M3 all landed; validation record in docs/resilience-timeouts.md §10
+
+## 2026-08-12T04:08Z log
+Closed runners-gem-version-crlf (\\r?$ on gem_version) and faraday-lvar-options-correlation (same-method lvar options hash). SSD Layer A green; design review clean (debt.md concern is pre-existing untracked, not in this change).
+
+## 2026-08-20T18:20Z resolve professionalize-p1p2
+Outcome: Phase 1 GitHub About/topics/wiki-off/secret-scanning live on origin. Phase 2 fileset allow-list, CoC, tracker stub deletion, gemspec hygiene on branch professionalize/github-hygiene (uncommitted worktree).
