@@ -1,10 +1,16 @@
 # Proposal: Phase 8 — the execution tier
 
-Status: **draft proposal, decision-gated.** This is the "separate proposal" that
-[`DESIGN.md`](DESIGN.md) §8 and §10 phase 8 defer to. Nothing here is built. It exists to
-be approved, descoped, or rejected as a whole before any execution-tier code is written.
+Status: **historical proposal; superseded in part by Phase 8a.** Phase 8a's experimental
+`execution-audit` harness exists. The decision is **no-go for phases 8b and 8c**: the
+sandboxed execution tier is deferred. See
+[`execution-tier-8a-findings.md`](execution-tier-8a-findings.md). The remaining proposal
+text records the decision context; it is not a current implementation plan.
 Adversarially reviewed once (Fable, 2026-07-10) — this revision folds in that critique;
 material corrections it drove are marked **[review]**.
+
+> **Phase 8a implements fewer controls than this proposal describes.** Install-phase
+> egress remains open; the proposed allowlist in §3.1 is not implemented. Phase 8a does
+> isolate run-phase networking. Do not treat any other proposed control as shipped.
 
 The three tools in scope — **SimpleCov**, **active_record_doctor**, **database_consistency**
 — share one property that separates them from everything in the shipped static pipeline:
@@ -306,7 +312,10 @@ without it. No silent arbitrary execution, ever.
 - Does not claim to contain a hostile kernel-escape exploit — container-class isolation only
   (§2.1).
 
-## 7. Staged delivery (static capture first, then an abandonable tier)
+## 7. Historical staged delivery and decision gates
+
+This section records the original staged plan. Phase 8a ran, produced a no-go decision,
+and ended further delivery. Do not use these steps as an active implementation plan.
 
 **[review] Phase 8-zero — the static-capture pass, *before* any execution code.** Enumerate
 every AR-doctor and database_consistency check into three buckets: **(a) already shipped**

@@ -13,7 +13,8 @@ target Rails app into a disposable Docker container and runs the full provisioni
 **clone/copy → bundle install → schema load → boot** — then runs active_record_doctor and
 normalizes its output into findings. Delivered as milestones M1–M4 (fixture, harness+funnel,
 AR-doctor integration, `execution-audit` command + `execution-findings.json` artifact),
-adversarially reviewed (Fable), suite green (107 runs) against a synthetic fixture.
+adversarially reviewed (Fable), with the **historical spike-suite result** of 107 runs
+against a synthetic fixture.
 
 The 8a decision gate (§7) was explicit: **measure the full provisioning-funnel success rate on
 real apps before committing to 8b/8c.** That measurement (M5) is what this document records.

@@ -4,14 +4,14 @@ All notable changes to this project are documented here. The format is loosely b
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/) once it is published.
 
-## [Unreleased]
+## Unreleased
 
 ### Added
 - **Resilience timeout auditing** under a new `resilience` category (spec:
   `docs/resilience-timeouts.md`). A `ResilienceAnalyzer` runs as a fifth concurrent
   pipeline thread checking `config/database.yml` (parsed, never ERB-evaluated) for
-  missing statement/connect timeouts, `config/` for rack-timeout wiring, and
-  `Gemfile.lock` for a request-timeout gem. Six new cops
+  missing statement/connect timeouts and `Gemfile.lock` for a request-timeout gem
+  (`rack-timeout` or `slowpoke`). Six new cops
   (`RailsAudit/TimeoutModuleUse`, `NetHttpDefaultTimeouts`, `NetHttpMissingTimeout`,
   `FaradayMissingTimeout`, `HttpartyMissingTimeout`, `RackTimeoutDisabled`) flag HTTP
   clients and middleware left on unbounded or default timeouts. Findings are value
@@ -41,14 +41,16 @@ All notable changes to this project are documented here. The format is loosely b
   tolerate CRLF `Gemfile.lock` line endings.
 
 ### Changed
-- The four static runners (brakeman, rubocop, reek, schema analyzer) now run concurrently.
+- The five static analyses (brakeman, rubocop, reek, schema, and resilience) run concurrently.
   Output is unaffected — findings are canonically re-sorted — and a failing runner still
   fails the whole audit loudly.
+- Removed `RailsAudit/ServiceObject` presence detection. Operation/service shape abuse is
+  enforced by the separate metz-scan project; rails-audit neither bundles nor depends on it.
 - The packaged gem is an allow-list (`lib/`, `exe/`, CLI-owned rubocop config,
   `Gemfile`/`Gemfile.lock`, user-facing docs). Process files (`AGENTS.md`, `.trk/`,
   design notes) no longer ship.
 
-## [0.1.0] - 2026-07-10
+## 0.1.0 - 2026-07-10
 
 Initial pre-release. Deterministic static-analysis pipeline for Rails codebases.
 
@@ -75,6 +77,3 @@ Initial pre-release. Deterministic static-analysis pipeline for Rails codebases.
   `--i-understand-untrusted-code-runs` acknowledgement; writes a separate,
   non-reproducible `execution-findings.json`. Deeper stages are deferred — see
   `docs/execution-tier-8a-findings.md`.
-
-[Unreleased]: https://github.com/fuentesjr/rails-audit/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/fuentesjr/rails-audit/releases/tag/v0.1.0

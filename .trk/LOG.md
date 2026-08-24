@@ -32,3 +32,18 @@ Outcome: Phase 1 GitHub About/topics/wiki-off/secret-scanning live on origin. Ph
 
 ## 2026-08-20T20:09Z log
 Align docs with 1c2146c (fileset/CoC shipped) and 4f27848 (Faraday lvar FP and CRLF gem_version closed). Changelog, resilience spec status, and README in-repo additions catch up.
+
+## 2026-08-24T02:23Z resolve docs-human-audit-20260823
+Outcome: Independent doc_reviewer audit completed: confirmed high-risk shipped-vs-proposed drift in DESIGN and execution proposal, plus reader-doc and fixture inaccuracies; no deletion candidates
+
+## 2026-08-24T02:28Z resolve docs-human-revision-20260823
+Outcome: coding_worker revised eight documentation files; focused CLI, annotate, normalizer, report tests passed; local links, headings, and diff check passed; parent review pending
+
+## 2026-08-24T02:31Z resolve docs-revision-corrections-20260823
+Outcome: coding_worker corrected parent-rejected leftovers: changelog label, resilience section refs, design current-state reconciliation, archive context, and fixture live-test wording
+
+## 2026-08-24T02:38Z resolve docs-final-rejection-review-20260823
+Outcome: doc_reviewer rejected the diff: missing Phase 8a install-egress disclosure, inaccurate overflow wording, ambiguous active_record_doctor lifecycle, and dense historical-plan prose; fixes applied
+
+## 2026-08-24T02:43Z resolve docs-final-recheck-20260823
+Outcome: doc_reviewer found two remaining documentation blockers: stale captured-fixture overflow wording and omitted README subgroup cap; both corrected

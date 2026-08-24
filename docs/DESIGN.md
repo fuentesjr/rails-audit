@@ -2,21 +2,22 @@
 
 `rails-audit` is a working-name placeholder, not a final product name.
 
-Status: draft, post-spike, post-micro-spikes. Grounded in `rails-audit-spike/`
-(implementation-notes.md, implementation-notes-llm.md, SCHEMA.md, RAILS_AUDIT_REPORT.md,
-ANNOTATIONS.md, `lib/*.rb`, `bin/audit`, `bin/annotate`), plus two follow-up micro-spikes
-run 2026-07-10 to close this doc's two biggest open questions:
+Status: living design, post-spike, post-micro-spikes. Grounded in the read-only sibling
+archive `../rails-audit-spike/` (historical paths below omit that prefix):
+`implementation-notes.md`, `implementation-notes-llm.md`, `SCHEMA.md`,
+`RAILS_AUDIT_REPORT.md`, `ANNOTATIONS.md`, `lib/*.rb`, `bin/audit`, and `bin/annotate`;
+plus two follow-up micro-spikes run 2026-07-10 to close this doc's two biggest questions:
 `implementation-notes-spikeA.md` (RuboCop config-landmine behavior against a target
 shipping its own `.rubocop.yml` with missing gems, target: Mastodon) and
 `implementation-notes-spikeB.md` (tool behavior at 5k+ file scale, target: Discourse,
-10,679 Ruby files, ~21x Lobsters). Every claim below either cites a spike artifact or is
-marked **Proposed — not validated by spike**.
+10,679 Ruby files, ~21x Lobsters). Historical claims cite the archive. Current contracts
+trace to this repository's source and tests. Unadopted ideas are marked **Proposed**.
 
 ## 1. Summary
 
-`rails-audit` is a CLI that runs a pinned toolchain of static-analysis tools (brakeman,
-rubocop + extensions, reek, and future additions) against a Rails codebase, normalizes
-their output into one findings schema, and renders an impact-ranked Markdown report —
+`rails-audit` is a CLI that runs a pinned external toolchain plus the versioned schema and
+resilience analyzers against a Rails codebase. It normalizes their output into one findings
+schema and renders an impact-ranked Markdown report —
 deterministically, with the CLI owning all analysis configuration rather than trusting
 whatever the target repo happens to ship.
 
@@ -156,18 +157,19 @@ added findings the phase-3 fixture was too small to surface: (a) correctly ident
 that ~76% of rubocop findings are default-config convention mismatch, not code defects —
 "one config decision... plus one autocorrect run away from near-zero; do not hand-fix";
 (b) flagged that ranking all XSS above all SQLi is backwards by real-world impact; (c)
-flagged that the 51 `correctness` (`Lint/*`) findings are "buried in a count bucket while
+flagged that the 51 `correctness` (`Lint/*`) findings were "buried in a count bucket while
 lower-impact style noise dominates visually" and "deserve line-by-line triage, not a
-count bucket" — a genuine miss, since only `security` findings are currently surfaced
+count bucket" — a genuine spike-era miss, since only `security` findings were surfaced
 individually regardless of category (`ANNOTATIONS.md`, `implementation-notes.md` phase 4,
 `implementation-notes-llm.md`).
 
 ## 4. Architecture
 
 Pipeline: **runners → normalizer → renderer**, with annotation as a fully separate
-command (`bin/annotate`, taking a `findings.json` path as input) — not a stage of the
-main pipeline. This mirrors the spike's structure (`bin/audit` vs `bin/annotate`) and is
-kept for a concrete reason: annotation is 70-90s+ of network-bound latency behind a
+command (`bundle exec exe/rails-audit annotate FINDINGS_JSON`) — not a stage of the main
+pipeline. The historical spike used `bin/audit` and `bin/annotate`; the current source CLI
+uses `bundle exec exe/rails-audit`. The separation is kept because annotation is 70-90s+
+of network-bound latency behind a
 paid API call, `bin/audit` is a ~15s local static-analysis run; conflating them would make
 every audit invocation pay LLM latency/cost whether or not annotation was wanted
 (`implementation-notes-llm.md`, "A production digest contract needs a cost/latency budget
@@ -179,20 +181,16 @@ line").
   captures stdout itself and writes it to disk before ever parsing it, so the parse step
   is always "read from a file" — never "parse captured stdout" (decision #6; spike
   `lib/runners.rb`). Per-tool exit codes are checked against a hardcoded, toolchain-
-  version-scoped table; anything else raises with the tool's stderr attached. Runners are
-  independent subprocess calls today, run serially. Micro-spike B measured ~7 minutes
-  serial total at Discourse's scale (brakeman + rubocop + reek); running them concurrently
-  (e.g. a `Thread.new` per runner, or a process pool) would cut wall time to roughly the
-  slowest tool's duration (~227s) instead of the sum — a real but modest win, not a
-  "broken without it" finding, and cheap to add later given the existing architecture
-  already supports it trivially (`implementation-notes-spikeB.md`; also delivery plan §10
-  phase 7).
+  version-scoped table; anything else raises with the tool's stderr attached. The current
+  CLI runs five independent analyses concurrently: brakeman, rubocop, reek, schema, and
+  resilience. The micro-spike's ~7-minute serial result at Discourse scale is historical
+  evidence, not the current execution model.
 - **Normalizer**: parses each tool's raw JSON into the v2 finding schema (§5). Owns the
   impact/confidence/category/location/identity mapping tables. Pure function of raw JSON
   in, findings JSON out — no subprocess calls.
 - **Renderer**: `findings.json` → `RAILS_AUDIT_REPORT.md` (§6). Pure function, no
   subprocesses.
-- **Annotate** (separate binary): `findings.json` → digest → `claude -p` → an annotations
+- **Annotate** (separate command): `findings.json` → digest → `claude -p` → an annotations
   file (§7).
 
 **Config ownership model.** The CLI carries its own analysis config (rubocop base
@@ -302,9 +300,9 @@ reproducible.
 ```
 
 `runtime_s` is dropped from the comparable/committed contract (see §4, Determinism
-contract) — kept only in an ephemeral run log, never in a file whose content is meant to
-be diffed run-over-run. **Proposed** — the spike's v1 schema included `runtime_s` at both the
-top-level tool summary and (implicitly) nowhere per-finding; v2 removes it from
+contract). It does not appear in output intended for comparison across runs.
+**Current contract:** the spike's v1 schema included `runtime_s` at the top-level tool
+summary; v2 removes it from
 `findings.json` given the 662s-vs-2.5s environment-sensitivity finding (§3, §4).
 
 ### Finding object
@@ -345,23 +343,22 @@ Changes from spike v1 (`SCHEMA.md`), each grounded in a specific spike finding:
   `column` to the hash input resolves the one measured rubocop collision (two
   `Style/StringLiterals` offenses on `Gemfile:18` at columns 5 vs. 24). Adding `column`
   does **not** resolve the measured reek collision — reek has no column concept at all;
-  the two colliding `DuplicateMethodCall` smells differ only in `name`. **Proposed, not
-  spiked**: `discriminator` is tool-specific — for reek, the smell's `name` field where
-  present, falling back to an ordinal index within the collision group as a last resort.
-  This has not been implemented or re-measured against the 140 known reek collision
-  groups; that re-measurement is an open de-risking item (§9). The brakeman 155-vs-158
+  the two colliding `DuplicateMethodCall` smells differ only in `name`.
+  **Current contract:** `discriminator` is tool-specific and participates in the identity
+  hash. Reek uses the smell name where present; schema and resilience findings supply
+  stable discriminators. Any remaining collision receives a deterministic ordinal. The
+  brakeman 155-vs-158
   native-fingerprint collision is already resolved by including `start_line` in the
   compound key (the two findings differ on that field even though brakeman's own
   fingerprint doesn't). Micro-spike B corroborates that collisions scale proportionally
   with volume, not as an edge case unique to Lobsters' size: at Discourse's ~21x scale,
   rubocop's raw 380,883 findings had 33,159 collision groups covering 78,636 findings, and
   reek's raw 48,806 findings had 2,555 groups covering 6,412 findings — consistent with
-  Lobsters' 1,529/140-group baseline, reinforcing the compound-key rationale. The
-  discriminator fix itself remains unimplemented — this is corroborating data, not new
-  de-risking of the fix (`implementation-notes-spikeB.md`).
+  Lobsters' 1,529/140-group baseline and reinforcing the compound-key rationale. Those
+  measurements are historical evidence; the discriminator contract above is implemented.
 - `native_fingerprint` is kept as a separate field for cross-referencing against the raw
   tool output / external tooling, explicitly **not** used for identity.
-- `location.lines` is an added optional field (**Proposed, not spiked**) carrying reek's
+- `location.lines` is an implemented optional field carrying reek's
   full line-set when it has more than two entries, so the `start_line: min, end_line: max`
   collapse — flagged in the spike as "lossy — flag if exact per-statement lines matter for
   reporting" — doesn't lose information for a smell like `TooManyStatements` that spans
@@ -381,8 +378,7 @@ observed between brakeman's `confidence` field and the fact that the normalizer 
 v1, using it as if it were severity (SCHEMA.md's own framing: "brakeman (`confidence` →
 severity)").
 
-Illustrative starting table — **Proposed, not validated by spike; needs security/eng
-review before adoption**:
+Current mapping summary (`lib/rails_audit/mappings.rb` is authoritative):
 
 | Rule family | Impact | Confidence source |
 |---|---|---|
@@ -390,10 +386,10 @@ review before adoption**:
 | Cross-Site Scripting | critical | brakeman `confidence` |
 | Mass Assignment, Open Redirect | high | brakeman `confidence` |
 | File Access | high (**open question**: read vs. write sink not distinguishable from brakeman's own output at rule granularity — see §9) | brakeman `confidence` |
-| rubocop `Lint/*` (correctness) | high — **illustrative, needs a per-rule pass**: this family mixes bug-shaped cops (`Lint/UselessAssignment`, `Lint/SuppressedException`) with hygiene cops (`Lint/RedundantCopDisableDirective`) that arguably don't warrant `high` uniformly; not aggregated regardless — see §6 | default: medium (no native per-finding confidence) |
+| rubocop `Lint/*` (correctness) | high by department | default: medium (no native per-finding confidence) |
 | rubocop `Metrics/*`, reek complexity-family (`TooManyStatements`, `FeatureEnvy`, `ClassLength`, ...) | medium | default: medium |
-| reek `DuplicateMethodCall`, `UtilityFunction`, other design-family smells | low-medium (needs per-rule pass) | default: medium |
-| Style/Layout/Naming (rubocop), reek naming smells | info/low | default: medium |
+| reek `DuplicateMethodCall`, `UtilityFunction`, other design-family smells | low | default: medium |
+| Style/Layout/Naming (rubocop), reek naming smells | info | default: medium |
 
 This table replaces SCHEMA.md's flat security floor ("security findings never map below
 medium") with an explicit impact tier per rule family — the two-axis split removes the
@@ -424,21 +420,20 @@ complexity-shaped) land in `complexity` — "the same smell, same category regar
 tool" is violated (`ANNOTATIONS.md`: "`design` vs `complexity` split is fuzzy... The
 boundary is inconsistent").
 
-**Proposed fix — not spiked, needs a full table before implementation**: category is
-assigned by a rule-level table keyed on the smell/rule identity, not the producing tool.
-Illustrative resolution for the two tools currently in the roster:
+**Current contract:** category is assigned through versioned rule, department, and family
+tables rather than by producing tool alone. The main mappings are:
 
 | Category | Example rules (either tool) |
 |---|---|
 | complexity | `Metrics/MethodLength`, `Metrics/AbcSize`, `Metrics/CyclomaticComplexity`, `Metrics/ClassLength`, reek `TooManyStatements`, `FeatureEnvy`, `TooManyMethods`, `TooManyInstanceVariables`, `LargeClass` |
 | design | reek `DuplicateMethodCall`, `UtilityFunction`, `DataClump`, `ControlParameter`, `Attribute`, `NilCheck`, `MissingSafeMethod` |
-| correctness | rubocop `Lint/*`, reek `MissingSafeMethod`, `NilCheck` (**open question**: are `NilCheck` and `MissingSafeMethod` correctness smells or design smells? spike didn't resolve this — both are listed under both candidate rows above deliberately to flag the ambiguity) |
+| correctness | rubocop `Lint/*` |
 
 Category set is `security | correctness | resilience | rails | performance | complexity |
 design | style` — v1's set plus `resilience`, added 2026-08-11 with timeout auditing
 ([`docs/resilience-timeouts.md`](resilience-timeouts.md)); `CATEGORY_ORDER` in
-`lib/rails_audit/report.rb` is authoritative. The v2 fix above is in the *assignment
-mechanism*, not the taxonomy itself.
+`lib/rails_audit/report.rb` is authoritative. `MissingSafeMethod` and `NilCheck` currently
+map to `design`; whether they belong in `correctness` remains an open question (§9).
 
 ### Location schema
 
@@ -448,14 +443,14 @@ unchanged). `column` is `null` when the tool doesn't provide one (brakeman, reek
 
 ## 6. Report & digest contracts
 
-**Attention-follows-severity is the governing principle**, not category order or raw
+**Attention follows impact is the governing principle**, not category order or raw
 count. The spike's v1 report (`RAILS_AUDIT_REPORT.md`) groups by category first, severity
 second within category, with a fixed `CATEGORY_ORDER` that happens to put `security`
 first. This "worked" on Lobsters only because brakeman was the sole source of
 critical/high findings in this run — it is not structurally guaranteed: a future tool
 (custom in-repo cops, active_record_doctor) could produce a critical/high finding in
 `design` or `rails`, and it would render *after* five other category sections under v1's
-layout. **Proposed — not spiked**: lead the report with a single "Critical & High"
+layout. **Current contract:** lead the report with a single "Critical & High"
 section spanning all categories, sorted by impact then category. This is the **only**
 surface where critical/high findings are listed individually — per-category sections
 below carry aggregate tables and total counts only (including a count of their own
@@ -476,12 +471,11 @@ currently map to `impact: high` (§5) and so qualify.
   contract).
 - Leading Critical & High section: individual listing (file:line, rule, message, impact,
   confidence), capped per category subgroup within the section (v1's per-section cap of
-  25 carries forward at this narrower scope) with an explicit "…and N more" line. This
-  cap-and-overflow path never fired on real Lobsters data (topped out at 23 in the
-  security category) and was only verified via a synthetic 30-item feed
-  (`implementation-notes.md` phase 2) — flagged as a real but low-risk unverified path.
+  25 carries forward at this narrower scope) with an explicit "…and N more" line.
+  Current tests verify overflow against captured Lobsters fixtures. No fresh live audit
+  has exercised that overflow path.
 - Per-category sections: aggregate table only — rule → count, sorted by `(impact desc,
-  count desc)` — **Proposed, not spiked**; attention-follows-severity applies to this
+  count desc)`. Attention follows impact on this
   surface exactly as it does to the digest (below), so a rare-but-severe medium finding
   isn't buried under high-volume style noise the way pure count-sorting would bury it.
   Capped (v1: top 15), with an explicit total. Grouping key should be `(category, impact,
@@ -504,9 +498,8 @@ verified budget shape:**
   rule groups / 545 findings dropped, 4,808-char digest) and the markers are what made
   that visible at all (`implementation-notes.md` phase 4).
 - A final hard-cap backstop (string-slice truncation of the whole digest) exists as a
-  last resort if section budgets somehow still overrun. This path has never fired in any
-  run, real or synthetic — **unverified code path**, low risk given it's a simple slice,
-  but explicitly not exercised (`implementation-notes-llm.md`).
+  last resort if section budgets somehow still overrun. Current unit coverage exercises
+  the final marker; no recorded real audit has needed this backstop.
 - Aggregation sort is by count desc only ("the loudest rule wins"). This is a known,
   accepted limitation carried forward, not a fix: a rare-but-severe medium finding can be
   bumped out of the top-40 by high-volume style noise before the LLM ever sees it. Given
@@ -529,19 +522,19 @@ header — carried forward verbatim as a UX/contract requirement, not just spike
 styling).
 
 **Invocation contract:**
-- Separate command (`rails-audit annotate <findings.json>`), off by default, never run as
+- Separate command (`bundle exec exe/rails-audit annotate FINDINGS_JSON` from a source
+  checkout), off by default, never run as
   part of the main audit pipeline (§4).
 - Digest built per §6, passed to `claude -p` via `Open3.capture3` with an argv array (not
   a shell string) — avoids quoting a multi-KB prompt through a shell.
-- **`--output-format json` is required in production**, not the plain-text output the
+- **`--output-format json` is required and implemented**, unlike the plain-text output the
   spike used for simplicity. The spike's `bin/annotate` captured plain stdout with zero
-  cost/token accounting; a production version needs the JSON wrapper specifically for
+  cost/token accounting; the current command uses the JSON wrapper specifically for
   diagnosable errors and cost visibility (`implementation-notes-llm.md`: "No cost/token
   visibility from plain `claude -p` text output... A production version would want
   `--output-format json` specifically to capture cost/usage").
-- **Hard timeout + at least one automatic retry are mandatory**, not optional hardening.
-  The spike's `bin/annotate` has neither today — it's a single `Open3.capture3` call with
-  no timeout, and the "retry" observed in phase 4 was the orchestrator manually
+- **Hard timeout + one automatic retry are implemented**, not optional hardening. The
+  historical spike's `bin/annotate` had neither — its "retry" was the orchestrator manually
   re-invoking the whole command after the first attempt hung ~17.5 minutes and died with
   exit 1 and empty stderr. That failure mode (long hang, no diagnostic) is exactly what a
   built-in timeout + automatic retry + structured output is meant to catch and surface
@@ -551,14 +544,13 @@ styling).
   Impact ranking critique) — this
   worked first try against both the fixture and the real 13k-finding dataset; no
   multi-call iteration was needed in either case (`implementation-notes-llm.md`: "One call
-  is fine... not evidence it always will"). The fourth header's wording — "Severity
-  ranking critique" — predates the impact/confidence split (§5); whether to rename it to
-  "Impact ranking critique" for v2 schema-vocabulary consistency is an open naming
-  question, not resolved here.
+  is fine... not evidence it always will"). The current fourth header is "Impact ranking
+  critique," matching the v2 vocabulary.
 
 **Failure policy:** on timeout, non-zero exit, or empty/malformed output after the retry
 budget is exhausted, fail loud with the tool's stderr (or "no stderr" explicitly, matching
-the observed hang) — never write a partial or silently-degraded `ANNOTATIONS.md`.
+the observed hang) — never write a partial or silently-degraded `ANNOTATIONS.md`. The
+current command uses a 180-second timeout, retries once, and writes successful output atomically.
 
 **Cost/latency expectations, from observed data only:** typical call ~70-90s wall,
 almost entirely network/model wait (one measured call: 1.57s user / 0.79s system CPU out
@@ -582,17 +574,17 @@ CI gate or pre-commit hook without an explicit opt-in and a generous timeout bud
   most likely to be the binding constraint in a memory-limited CI environment, not rubocop
   (more output, less memory) or brakeman (`implementation-notes-spikeB.md`).
 
-**v2 candidates — none spiked, all Proposed:**
-- **Static schema/migration cops (rubocop-rails, already in the pinned toolchain)** — the
+**Current shipped static additions and unshipped candidates:**
+- **Static schema/migration cops (rubocop-rails, already in the pinned toolchain) — shipped.** The
   in-model way to get a slice of schema-sanity coverage without changing the execution model.
   `rubocop-rails` ships a static `db/schema.rb` parser (`schema_loader.rb`) behind cops like
   `Rails/UniqueValidationWithoutIndex` (uniqueness validation lacking a unique index — the
   flagship active_record_doctor check), `Rails/ThreeStateBooleanColumn`,
   `Rails/UnusedIgnoredColumns`, plus migration-file cops (`Rails/NotNullColumn`,
   `Rails/ReversibleMigration`, ...). All read committed source (`db/schema.rb`, `db/migrate/**`),
-  so they stay inside the determinism contract. **This is Phase 5** (§10). Known gap: these cops
-  silently do nothing when `db/schema.rb` is absent (a `structure.sql`-only target, or schema not
-  committed) — see §9.
+  so they stay inside the determinism contract. **Implemented in Phase 5** (§10). When
+  `db/schema.rb` is absent, the CLI reports the inactive schema-dependent checks rather
+  than letting the silent no-op read as clean (§9).
 - **active_record_doctor** and **database_consistency** — **RECLASSIFIED to the execution tier
   (Phase 8), NOT Phase 5.** Reconnaissance (2026-07-10, source-cited) established that both
   require **booting the target Rails app in-process** (running all initializers, eager-loading
@@ -626,7 +618,7 @@ CI gate or pre-commit hook without an explicit opt-in and a generous timeout bud
   `config/rails_audit/rubocop.yml`). Distinct from the rubocop-shopify rejection below:
   shopify was rejected because its config *disables* cops (silent false negatives);
   rubocop-minitest only *adds* cops, including genuine correctness checks
-  (`Minitest/UnreachableAssertion`, `Minitest/SkipEnsure`, `Minitest/AssertRaisesWithBlock`)
+  (`Minitest/UnreachableAssertion`, `Minitest/SkipEnsure`, `Minitest/UselessAssertion`)
   alongside style-tier ones — and per §5, style-tier findings already rank `info`, so nit
   volume is a rendering problem, not a baseline problem. **Adoption condition
   (load-bearing):** on a target with no Minitest test files, the plugin silently finds
@@ -667,11 +659,7 @@ CI gate or pre-commit hook without an explicit opt-in and a generous timeout bud
   `Minitest/NoAssertions`, `Minitest/DuplicateTestRun`, `Minitest/ReturnInTestMethod` —
   stay dark for now as an explicit deferral (false-positive/Safe profiles not
   evaluated), not a silent drop; revisit at the next rubocop-minitest version bump.
-  Correction to this entry's own rationale text above: no
-  `Minitest/AssertRaisesWithBlock` cop exists in the gem's history (checked against its
-  CHANGELOG) — the closest real cop covering "assert_raises without a specified
-  exception" is `Minitest/UnspecifiedException`, in the deferred set above. The "known
-  cost" predicted above turned out to be zero: the §5 exit-code and tool-version tables
+  The predicted table-extension cost turned out to be zero: the §5 exit-code and tool-version tables
   are keyed per tool (`"rubocop"`), not per department, so only the mappings needed
   extending — nothing was silently dropped.
   The load-bearing adoption condition shipped: `RailsAudit::CLI::MINITEST_MISSING_WARNING`
@@ -684,8 +672,8 @@ CI gate or pre-commit hook without an explicit opt-in and a generous timeout bud
   independent rather than conflated.
 - **Resilience timeout auditing (in-house)** — **Adopted (2026-08-11).** Not a third-party
   tool: `RailsAudit::ResilienceAnalyzer` runs as a fifth concurrent pipeline thread reading
-  `config/database.yml` (never ERB-evaluated — untrusted input), `config/` files, and
-  `Gemfile.lock`; six custom cops (`RailsAudit/TimeoutModuleUse`,
+  `config/database.yml` (never ERB-evaluated — untrusted input) and `Gemfile.lock`; six
+  custom cops (`RailsAudit/TimeoutModuleUse`,
   `NetHttpDefaultTimeouts`, `NetHttpMissingTimeout`, `FaradayMissingTimeout`,
   `HttpartyMissingTimeout`, `RackTimeoutDisabled`) run inside the existing rubocop runner
   via the CLI-owned config. Introduced the `resilience` category (§5). Findings are value
@@ -760,9 +748,8 @@ found while drafting this document:
   CLI provides configurable `--max-findings` (default 500,000) and hard-fails when the
   cap is exceeded; users can raise the cap or narrow the target. Findings are never
   dropped or truncated. Streaming is deferred (`implementation-notes-spikeB.md`).
-- **Fingerprint-based cross-run identity.** Collisions are measured and real; the
-  compound-key + tool-specific-discriminator fix proposed in §5 has not been implemented
-  or re-measured against the 1,529 (rubocop) / 140 (reek) known collision groups.
+- **Fingerprint-based cross-run identity — RESOLVED.** Collisions are measured and real;
+  the current compound key includes the tool-specific discriminator described in §5.
 - **Rails/Performance cops force-loaded.** RESOLVED by micro-spike A (2026-07-10): with a
   CLI-owned config the cops verifiably fire — Lobsters 0→123 `Rails/*`, 0→30
   `Performance/*` offenses (`implementation-notes-spikeA.md`, experiment 4; see §4).
@@ -790,9 +777,9 @@ found while drafting this document:
 - **Default confidence value (flat "medium") for rubocop/reek findings** — no signal from
   the spike on whether this is adequate or whether specific rules warrant per-rule
   confidence tuning (e.g., cops known for high false-positive rates).
-- **Category taxonomy rule-level table (§5)** — the design-vs-complexity fix is proposed
-  at illustrative granularity only; a full table covering every rule in the v1 roster
-  (let alone v2 candidates) has not been built or reviewed.
+- **Category taxonomy mapping review (§5).** The current rule, department, and family
+  tables implement the v2 mechanism. Whether Reek's `NilCheck` and `MissingSafeMethod`
+  belong in `design` or `correctness` remains open.
 - **New: schema cops silently no-op when `db/schema.rb` is absent (Phase 5).** The
   rubocop-rails schema-aware cops (`Rails/UniqueValidationWithoutIndex`, etc.) parse
   `db/schema.rb` and do nothing if it's missing — a `structure.sql`-only target, or a repo that
@@ -803,74 +790,59 @@ found while drafting this document:
   "clean." IMPLEMENTED (Phase 5c): the CLI detects a missing `db/schema.rb` and the report renders
   a `## Warnings` section naming the inactive schema-dependent cops (migration cops on
   `db/migrate` are noted as unaffected).
-- **`enforce_hard_cap` digest backstop** — never exercised, real or synthetic; low risk
-  but genuinely unverified (`implementation-notes-llm.md`).
-- **Report restructure to an impact-first leading section (§6)** — proposed but not
-  built; needs a rendering pass and a fresh look at Lobsters' actual output once
-  implemented to confirm it reads better, not just differently.
+- **Digest hard-cap backstop.** Current unit coverage exercises the final truncation
+  marker. No recorded real audit has needed the backstop.
+- **Report restructure to an impact-first leading section (§6) — IMPLEMENTED.** The current
+  renderer leads with `Critical & High` and then presents category aggregates.
 
 ## 10. Delivery plan
 
-Small, independently shippable phases. The spike code itself is throwaway and is NOT
-carried forward — it predates schema v2, was built exempt from testing discipline, and
-embeds decisions this document supersedes. Phase 1 is a from-scratch implementation of
-the spike's functional *scope*, built to this document, in a new repo/gem. What does
-carry forward from the spike is data, not code: the raw tool outputs in `tmp/raw/` as
-normalizer test fixtures, the measured fingerprint-collision pairs as identity-spec
-regression cases, and the verified exit-code/version tables.
+This section is a historical delivery record.
 
-1. **Implement the spike's scope from scratch as a gem** (three runners → normalizer →
-   renderer), per this document and with tests. Pin the Gemfile.lock. Load
-   rubocop-rails/rubocop-performance via the CLI-owned `--config` file (`plugins:`, §4).
-   Default to overriding target brakeman-ignore files (opt-in flag to respect them).
-   Hardcode and version-scope the exit-code tables. Implement findings schema v2's
-   `impact`/`confidence` split and compound-key identity (without the reek discriminator
-   fix yet — that's phase 2). Canonical sort order for all output; strip `runtime_s` from
-   the comparable contract. No LLM layer in this phase.
-2. **Close the two confirmed silent-false-negative gaps and re-measure.** Rails/Performance
-   cops actually firing once force-required is now **verified** (micro-spike A, §3/§4) —
-   what remains in this phase is integrating the CLI-owned rubocop config into the CLI
-   proper (not the throwaway spike config) and re-running the fingerprint collision
-   measurement with the reek discriminator fix from §5 in place (still unimplemented).
-3. **Report/digest rework.** Impact-first leading section; correctness (`Lint/*`)
-   surfaced individually per §6; re-verify the "…and N more" and digest-truncation code
-   paths against real (not just synthetic) overflow.
-4. **LLM annotation layer, productionized.** Hard timeout, automatic retry,
-   `--output-format json` for cost/error diagnostics, per §7. Still off-by-default,
-   still a separate command.
-5. **Tool roster expansion: static schema/migration cops (rubocop-rails).** Enable and verify
-   the schema-aware cops that ship with the already-pinned `rubocop-rails` and read committed
-   source statically (`Rails/UniqueValidationWithoutIndex` is enabled by default; the `pending`
-   ones — `Rails/ThreeStateBooleanColumn`, `Rails/UnusedIgnoredColumns`, and pending migration
-   cops — need explicit `Enabled: true` in the CLI-owned config). Add per-cop impact/category
-   rows (§5): schema-integrity cops warrant higher impact than the `Rails/*` department default,
-   since a uniqueness validation without a unique index is a real data-integrity bug, not style.
-   Verify against a fixture target shipping `db/schema.rb`. **Reclassified out of this phase:**
-   active_record_doctor and database_consistency — they require booting the target + a live DB
-   (§8), so they move to Phase 8's execution tier, not here. Caution: the Phase-7 `Exclude` list
-   drops `db/schema.rb` from *linting*, which is correct — the schema loader reads it as data, not
-   as an inspected file — but `db/migrate/**` must stay lintable or the migration cops go dark.
-6. **Custom in-repo cops (not a separate gem — see §8).** Fat model/controller size signals
-   under `RuboCop::Cop::RailsAudit::*`, loaded into the pinned rubocop via the CLI-owned
-   config and mapped in §5. Loading through the subprocess runner must fire for real
-   (silent-false-negative risk). Operation/service shape abuse lives in metz-scan per
-   [`application-operations.md`](application-operations.md).
-7. **Scale and config-landmine validation — DONE via micro-spikes, follow-ups remain.**
-   Both were run: micro-spike A (Mastodon, missing-gem `.rubocop.yml`) and micro-spike B
-   (Discourse, 10,679 files) — see §3, §4, §9. Remaining work this phase should still
-   cover: a CLI-owned `Exclude` list (§9), a decision on in-memory `findings.json` upper
-   bounds/streaming (§9), and — optionally, cheaply — parallelizing the runners (§4) since
-   serial execution at Discourse's scale takes ~7 minutes end-to-end.
-8. **Execution-tier tools — SimpleCov, active_record_doctor, database_consistency — as their
-   own decision.** Separate proposal, given the shared trust/execution model (§8): all three
-   require executing untrusted target code — SimpleCov runs the target's test suite;
-   active_record_doctor and database_consistency boot the target app in-process and connect to a
-   live database. This tier needs a sandboxing/opt-in design (ephemeral throwaway DB, container
-   isolation, arbitrary-code-execution acceptance) and can't honor the static pipeline's
-   determinism/pinning contracts as-is. Not bundled into any of the above phases; scoped and
-   reviewed separately. **The sandboxing/opt-in design is drafted, decision-gated, in
-   [`docs/execution-tier-proposal.md`](execution-tier-proposal.md)** (adversarially reviewed);
-   its headline finding is that a static-capture pass ("Phase 8-zero") captures a large slice of
-   the two DB tools' value inside the existing contracts, leaving SimpleCov as the tier's only
-   irreplaceable payload — so the proposal recommends the static pass first and the sandboxed
-   tier only as a conditional, staged spike.
+| Phase | Current status |
+|---|---|
+| 1–6 | Complete in the static CLI |
+| 7 | Validation complete |
+| 8a | Retained as an unsupported experimental artifact |
+| 8b–8c | Deferred after the 8a no-go decision |
+
+The spike code was throwaway. It predates schema v2 and was exempt from testing
+discipline. The current repository carries forward its evidence, not its implementation.
+That evidence includes raw normalizer fixtures, collision cases, and verified exit-code
+tables.
+
+1. **Complete — implement the spike's scope from scratch as a gem.** Historical scope:
+   three runners, normalizer, renderer, pinned dependencies, CLI-owned configuration,
+   version-scoped exit codes, and schema v2. The current CLI implements those contracts,
+   including canonical output and compound-key identity with a discriminator (§5).
+2. **Complete — close the confirmed silent-false-negative gaps and re-measure.** Historical
+   scope called for integrating CLI-owned RuboCop configuration and resolving collision
+   identity. The current CLI owns the configuration, emits inactivity warnings, and uses
+   the discriminator contract in §5.
+3. **Complete — report/digest rework.** Historical scope covered the impact-first leading
+   section, individual high-impact `Lint/*` findings, and overflow paths. The current
+   renderer leads with `Critical & High`. Overflow markers are verified against captured
+   Lobsters fixtures; no fresh live audit has exercised that overflow path.
+4. **Complete — LLM annotation layer, productionized.** The current separate, opt-in
+   command uses a hard timeout, one retry, JSON output, cost/error diagnostics, and atomic
+   output (§7).
+5. **Complete — tool roster expansion: static schema/migration cops.** The current
+   CLI-owned configuration enables the shipped schema and migration cops, maps their
+   findings, and warns when schema-dependent checks are inactive. active_record_doctor
+   exists only in the unsupported 8a artifact. database_consistency remains deferred.
+6. **Complete — custom in-repo cops (not a separate gem — see §8).** Fat model and
+   controller size signals live under `RuboCop::Cop::RailsAudit::*`. The CLI-owned
+   RuboCop configuration loads and maps them. Operation/service shape abuse lives in
+   metz-scan; see [`application-operations.md`](application-operations.md).
+7. **Complete — scale and config-landmine validation.** Historical evidence comprises
+   micro-spike A (Mastodon, missing-gem `.rubocop.yml`) and micro-spike B (Discourse,
+   10,679 files) — see §3, §4, §9. Their follow-up scope is now complete: the current
+   CLI owns its exclusion baseline, caps in-memory findings with `--max-findings`, and
+   runs five analyses concurrently. Streaming remains a deliberate deferral (§9), not a
+   prerequisite for this phase.
+8. **8a retained unsupported; 8b/8c deferred.** Phase 8a implements an experimental
+   harness and active_record_doctor integration. It is not part of the supported product.
+   A supported execution tier, database_consistency, and SimpleCov remain deferred. The
+   [historical proposal](execution-tier-proposal.md) records the intended controls. The
+   [Phase 8a findings](execution-tier-8a-findings.md) record the measured failures and
+   no-go decision.

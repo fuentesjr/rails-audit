@@ -38,7 +38,7 @@ cd rails-audit
 bin/setup
 ```
 
-Run it against a target app with `exe/rails-audit` (or `bundle exec exe/rails-audit`).
+From a source checkout, run it with `bundle exec exe/rails-audit`.
 
 Requires **Ruby >= 3.2.0**. The analysis tools are bundled as pinned dependencies — you do
 **not** need brakeman/rubocop/reek installed in the target app.
@@ -48,13 +48,15 @@ Requires **Ruby >= 3.2.0**. The analysis tools are bundled as pinned dependencie
 ### Audit (the core command)
 
 ```sh
-rails-audit audit PATH/TO/RAILS/APP
+bundle exec exe/rails-audit audit PATH/TO/RAILS/APP
 ```
 
-Writes two files to the output directory (default: the current directory):
+Writes the normalized outputs and preserves the runner inputs in the output directory
+(default: the current directory):
 
 - `findings.json` — the full normalized findings, one schema across all tools.
 - `RAILS_AUDIT_REPORT.md` — an impact-ranked Markdown report.
+- `raw/` — tool-native JSON for brakeman, rubocop, reek, schema, and resilience.
 
 Options:
 
@@ -64,15 +66,15 @@ Options:
 | `--respect-target-config` | off | Respect the target app's own brakeman ignore file (by default it is overridden — config ownership). |
 | `--max-findings N` | `500000` | Hard cap on in-memory findings. Over the cap the run fails loudly instead of straining memory; raise it for a very large monorepo. Findings are never silently dropped. |
 
-The report leads with an impact-first section — every `critical`/`high` finding listed
-individually — then groups the rest by category (`security`, `correctness`, `rails`,
-`performance`, `complexity`, `design`, `style`), and closes with totals by impact and
-confidence.
+The report leads with an impact-first section. It lists up to 25 `critical` or `high`
+findings per category subgroup, then states the overflow count. The report groups the
+rest by category (`security`, `correctness`, `resilience`, `rails`, `performance`,
+`complexity`, `design`, `style`) and closes with totals by impact and confidence.
 
 ### Annotate (optional LLM layer)
 
 ```sh
-rails-audit annotate findings.json
+bundle exec exe/rails-audit annotate findings.json
 ```
 
 Builds a truncation-safe digest of the findings and asks the `claude` CLI for
@@ -80,12 +82,13 @@ prioritization and refactoring judgment, writing `ANNOTATIONS.md`. This is a **s
 command over the audit's output — it never runs during `audit`, and the deterministic
 findings never depend on it. Requires the `claude` CLI to be installed and authenticated.
 
-Options: `--output PATH` (default `ANNOTATIONS.md`).
+Options: `--output PATH` (default `ANNOTATIONS.md`). Annotation uses a 180-second timeout,
+retries once, requests JSON from `claude`, and writes the result atomically.
 
 ### Execution audit (experimental)
 
 ```sh
-rails-audit execution-audit PATH/TO/RAILS/APP --i-understand-untrusted-code-runs
+bundle exec exe/rails-audit execution-audit PATH/TO/RAILS/APP --i-understand-untrusted-code-runs
 ```
 
 > **Experimental and unsupported.** This runs the target app's code (`bundle install`,
@@ -94,11 +97,14 @@ rails-audit execution-audit PATH/TO/RAILS/APP --i-understand-untrusted-code-runs
 > structurally on many real-world apps. See
 > [`docs/execution-tier-8a-findings.md`](docs/execution-tier-8a-findings.md) for the
 > go/no-go measurement, and [`SECURITY.md`](SECURITY.md) for the threat model. Requires
-> Docker. The `--i-understand-untrusted-code-runs` acknowledgement is mandatory.
+> Docker. The `--i-understand-untrusted-code-runs` acknowledgement is mandatory. Options are
+> `--output PATH` (default `execution-findings.json`) and `--report PATH` (default
+> `EXECUTION_AUDIT_REPORT.md`). The command remains unsupported: Phase 8a exists as a
+> committed experimental artifact, while phases 8b and 8c are deferred.
 
 ## What it checks
 
-The static pipeline runs four tools, all pinned:
+The static pipeline runs five concurrent analyses. External tool versions are pinned:
 
 - **brakeman** — security vulnerabilities.
 - **rubocop** + **rubocop-rails** + **rubocop-performance** + **rubocop-minitest** —
@@ -107,9 +113,9 @@ The static pipeline runs four tools, all pinned:
 - **reek** — code smells / complexity and design issues.
 - **In-repo additions** — custom cops (fat model, fat controller action as size signals),
   a static schema analyzer that reads `db/schema.rb` for issues like unindexed foreign
-  keys, mismatched FK types, and tables without a primary key, and a resilience timeout
-  analyzer plus HTTP-client timeout cops (`docs/resilience-timeouts.md`) — all without
-  booting the app or touching a database. Operation/service *shape* abuse (not mere
+  keys, mismatched FK types, and tables without a primary key, and the resilience analyzer
+  plus HTTP-client timeout cops (`docs/resilience-timeouts.md`) — all without booting the
+  app or touching a database. Operation/service *shape* abuse (not mere
   presence) is enforced by [metz-scan](https://github.com/fuentesjr/metz-scan), not this
   auditor.
 
@@ -127,6 +133,10 @@ also lives in metz-scan; neither gem depends on the other for it).
 
 - [`docs/DESIGN.md`](docs/DESIGN.md) — the canonical design document (findings schema,
   determinism contract, impact/category model, delivery plan).
+- [`docs/resilience-timeouts.md`](docs/resilience-timeouts.md) — timeout-auditing contract,
+  warnings, and deferred checks.
+- [`docs/execution-tier-8a-findings.md`](docs/execution-tier-8a-findings.md) — Phase 8a's
+  historical findings and the 8b/8c deferral decision.
 - [`docs/application-operations.md`](docs/application-operations.md) — legitimate
   application operations vs service/concern soup; enforcement rule matrix.
 - [`FAQ.md`](FAQ.md) — why it overrides your config, why zero findings ≠ clean, and other
@@ -150,4 +160,3 @@ See [`LICENSE.txt`](LICENSE.txt).
 ## Code of Conduct
 
 This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
-

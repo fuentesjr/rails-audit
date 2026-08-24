@@ -40,10 +40,11 @@ container-escape or hostile-kernel exploit. Do not point `execution-audit` at co
 consider actively adversarial, and do not run it on a host where a container escape would
 be catastrophic. Prefer an isolated/disposable environment.
 
-The execution tier is **not warranted reproducible** and its deeper stages are deferred;
-see [`docs/execution-tier-proposal.md`](docs/execution-tier-proposal.md) for the full
-sandbox design and [`docs/execution-tier-8a-findings.md`](docs/execution-tier-8a-findings.md)
-for the go/no-go measurement.
+The execution tier is **not warranted reproducible**, and its deeper stages are deferred.
+The [historical proposal](docs/execution-tier-proposal.md) includes controls that Phase 8a
+did not implement, including an install-egress allowlist. See the
+[Phase 8a findings](docs/execution-tier-8a-findings.md) for measured limits and the no-go
+decision.
 
 ## Supported versions
 

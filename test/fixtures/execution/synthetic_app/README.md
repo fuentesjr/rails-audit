@@ -4,8 +4,8 @@ A synthetic, intentionally minimal Rails app fixture. It exists to be the
 known-good "happy path" target for the execution-tier sandbox harness
 (`docs/execution-tier-proposal.md` §3.1–§3.3, §3.5) — the harness clones it
 into a container, `bundle install`s it, loads its schema into a throwaway
-Postgres, boots it, and (in a later milestone) runs active_record_doctor
-against it. This app is **not** a demonstration of good Rails style; several
+Postgres, boots it, and runs active_record_doctor against it. This app is
+**not** a demonstration of good Rails style; several
 things in it are deliberately wrong so the harness has something real to
 detect.
 
@@ -21,8 +21,8 @@ to be run outside the execution-tier harness.
 - `Gemfile.lock` was generated with `bundle lock` against the real
   rubygems.org index (not hand-authored), so it's a genuinely resolvable
   dependency graph. It was **not** `bundle install`ed on the host — the
-  in-container install (a later milestone) is the real test of installability
-  (native extensions, platform-specific gems, etc.).
+  in-container install is the real test of installability (native extensions,
+  platform-specific gems, etc.).
 
 ## Only three frameworks loaded
 
@@ -65,5 +65,5 @@ Verified on the host (no Docker): `db/schema.rb` parses as valid Ruby,
 `Gemfile`/config files parse, `Gemfile.lock` is a real `bundle lock` resolution
 against rubygems.org. **Not** verified on the host: that `bundle install`,
 `db:schema:load`, and `Rails.application.eager_load!` actually succeed —
-that requires Postgres + the resolved gems installed, which is exactly what
-the in-container harness (a later milestone) proves.
+that requires Postgres + the resolved gems installed. With Docker available, the opt-in
+`RAILS_AUDIT_LIVE=1` harness live test verifies that in-container funnel.

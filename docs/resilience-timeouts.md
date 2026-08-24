@@ -25,8 +25,8 @@ analyzer and call-site cops.
 |---|---|---|
 | 1 | New top-level category `resilience` | Owner decision 2026-08-11; timeout gaps don't fit the existing seven categories |
 | 2 | Value judgment, not presence-only | Findings state the observed value against a suggested threshold; the user decides applicability (convention over configuration). Thresholds are owned, versioned data (§7), displayed in messages, never silent gates |
-| 3 | Scope: the four checks in §5–§6; all else deferred (§9) | Prove the category end-to-end on the highest-signal checks first |
-| 4 | Static only — no target code executes | `database.yml` ERB is Ruby; evaluating it runs untrusted target code. Never evaluate it (§5). Inherits DESIGN.md §4 determinism/config-ownership contracts |
+| 3 | Scope: the analyzer rules in §4 and six cops in §5; all else deferred (§9) | Prove the category end-to-end on the highest-signal checks first |
+| 4 | Static only — no target code executes | `database.yml` ERB is Ruby; evaluating it runs untrusted target code. Never evaluate it (§4). Inherits DESIGN.md §4 determinism/config-ownership contracts |
 
 ## 3. Category plumbing (normative)
 
