@@ -12,7 +12,9 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # setup-ruby publishes the pinned Ruby 4.0.1 for Ubuntu 24.04.
+    # The 26.04 image that ubuntu-latest uses has only the newest 4.0 patch.
+    runs-on: ubuntu-24.04
     name: Ruby ${{ matrix.ruby }}
     strategy:
       matrix:
