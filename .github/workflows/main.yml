@@ -13,11 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Ruby ${{ matrix.ruby }}
-    strategy:
-      matrix:
-        ruby:
-          - '4.0.1'
+    name: test
 
     steps:
       - uses: actions/checkout@v6
@@ -26,7 +22,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: ${{ matrix.ruby }}
+          ruby-version: '4.0.9'
           bundler-cache: true
       - name: Run the default task
         run: bundle exec rake
